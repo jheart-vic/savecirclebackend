@@ -1,0 +1,41 @@
+{
+  "name": "savecirclebackend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SaveCircle backend API",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jheart-vic/savecirclebackend.git"
+  },
+  "author": "Victor",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jheart-vic/savecirclebackend/issues"
+  },
+  "homepage": "https://github.com/jheart-vic/savecirclebackend#readme",
+  "dependencies": {
+    "@prisma/client": "^7.10.0",
+    "dotenv": "^18.0.5",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.4",
+    "prisma": "^7.10.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
