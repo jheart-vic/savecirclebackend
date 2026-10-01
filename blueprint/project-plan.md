@@ -591,9 +591,16 @@ row-level security. Money tables (`Payment`, `Contribution`, `MemberCredit`,
 This repo:
 
 - **Backend:** Node.js + Express, TypeScript
-- **Database:** PostgreSQL with row-level security, accessed through Prisma.
-  Each request runs its queries in a transaction that sets the current
-  organisation for RLS. The app's database role must not bypass RLS.
+- **Database:** Neon PostgreSQL with row-level security, accessed through
+  Prisma 7 with the `@prisma/adapter-pg` driver adapter. The app uses Neon's
+  pooled connection; migrations use the direct connection. Each request runs
+  its queries in a transaction that sets the current organisation for RLS
+  (transaction-local, because Neon's pooler is in transaction mode). The
+  app's database role must not bypass RLS.
+- **Libraries:** `zod` for validation, `libphonenumber-js` for E.164 phone
+  normalization, `cors` for the frontend origin, `express-rate-limit` for
+  per-IP limits, `bullmq` with `ioredis` for jobs. Hashing uses Node's
+  built-in `crypto`; Paystack and Termii are called with built-in `fetch`.
 - **Payments:** a `PaymentProvider` interface (`createCustomer`,
   `verifyIdentity`, `issueAccount`, `verifyTransaction`,
   `resolveAccountName`, `transfer`, `fetchSettlement`). First adapter:
@@ -723,14 +730,15 @@ This repo has no UI. The API serves a mobile-first PWA and must support:
 
 ## 13. Deployment - Where and how will this ship?
 
-Host: Render.
+Host: Render for the app, Neon for the database.
 
 - Render web service for the API (including webhook ingress)
 - Render background worker running the BullMQ workers and repeatable jobs
 - Render Key Value (Redis) for BullMQ
-- Render PostgreSQL
+- Neon PostgreSQL (pick a region close to the Render region)
 - `prisma migrate deploy` runs before the app starts on each deploy
-- Env vars: database URL, Redis URL, Termii credentials, master encryption key,
+- Env vars: `DATABASE_URL` (Neon pooled), `DIRECT_URL` (Neon direct, for
+  migrations), Redis URL, Termii credentials, master encryption key,
   session/OTP secret. Gateway keys are per organisation in the database,
   encrypted, never in env vars.
 

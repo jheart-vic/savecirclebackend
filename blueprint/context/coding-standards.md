@@ -37,6 +37,7 @@
 
 - `src/app.ts` - builds and exports the Express app (importable by tests)
 - `src/server.ts` - loads env and starts listening; nothing else
+- `src/db.ts` - the one shared Prisma client; import `prisma` from here
 - `src/generated/prisma/` - Prisma client output; generated, git-ignored,
   never edited by hand
 - `prisma/schema.prisma` and `prisma/migrations/` - schema and migrations
@@ -54,10 +55,14 @@
 
 ## Database
 
-- PostgreSQL, with Prisma ORM 7 for all database operations
-- Prisma 7 uses the `prisma-client` generator and needs a driver adapter
-  (`@prisma/adapter-pg`) to create a client; the first feature that queries
-  the database adds it
+- Neon PostgreSQL, with Prisma ORM 7 for all database operations
+- The app connects through Neon's pooled URL (`DATABASE_URL`) with the
+  `@prisma/adapter-pg` driver adapter in `src/db.ts`. Prisma CLI commands use
+  the direct URL (`DIRECT_URL`) via `prisma.config.ts`
+- Neon's pooler runs PgBouncer in transaction mode, so session state does not
+  survive between statements outside a transaction. Set the RLS organisation
+  with `set_config('app.organisation_id', $1, true)` (transaction-local)
+  inside the same transaction as the tenant queries, never with a plain `SET`
 - Always use `npm run db:migrate` (`prisma migrate dev`) for schema changes,
   never `db push`
 - Run `npx prisma migrate status` before committing to verify migrations are
@@ -90,7 +95,15 @@
   token; never trust a client-supplied user id
 - Read secrets and config from environment variables; never commit them
 
-> TODO: validation library and auth mechanism are not chosen.
+- Validate with `zod` schemas; parse, don't cast
+- Normalize phone numbers to E.164 with `libphonenumber-js` (default region
+  NG) before storing or comparing them
+- Hash OTPs, session tokens, and PINs with Node's built-in `crypto` (HMAC or
+  `scrypt`); no extra hashing library
+- Call Paystack and Termii with the built-in `fetch`, behind the
+  `PaymentProvider` and `Notifier` interfaces; no vendor SDKs
+- `cors` allows only the frontend origin; `express-rate-limit` guards
+  per-IP limits on public auth and PIN endpoints
 
 ## Error Handling
 

@@ -1,6 +1,6 @@
 # SaveCircle - Project Overview
 
-<!-- blueprint:source-hash 9171d2f24075775f8c60577ad23d968df7a1b67bfb18b56f0fc225c1d3370f8a -->
+<!-- blueprint:source-hash f440caf1b4cdd5b65f2268f14a604f221916be9739836e897894535fbe844c13 -->
 
 > Backend API for SaveCircle: collections and payout software that MFBs,
 > banks, and cooperatives run their ajo and thrift products on. Money moves
@@ -350,8 +350,12 @@ append-only.
 ## Tech stack
 
 - **Node.js + Express + TypeScript** - the API and webhook ingress
-- **PostgreSQL + Prisma** - RLS via a per-request transaction that sets the
-  organisation; the app role must not bypass RLS
+- **Neon PostgreSQL + Prisma 7** (`@prisma/adapter-pg`) - app on the pooled
+  URL, migrations on the direct URL; RLS via a per-request transaction that
+  sets the organisation transaction-locally; the app role must not bypass RLS
+- **zod, libphonenumber-js, cors, express-rate-limit** - validation, E.164
+  phones, frontend origin, per-IP limits; hashing via built-in `crypto`,
+  providers via built-in `fetch`
 - **PaymentProvider interface** - Paystack first, Flutterwave later, then
   per-bank adapters
 - **Termii behind `Notifier`** - WhatsApp and SMS, delivery reports
@@ -377,9 +381,10 @@ admin dashboard, and the finance approval digest.
 ## Deployment
 
 - **Render:** web service (API + webhooks), background worker (BullMQ), Key
-  Value (Redis), PostgreSQL
+  Value (Redis). **Neon** for PostgreSQL.
 - **Migrations:** `prisma migrate deploy` before start
-- **Env vars:** database URL, Redis URL, Termii credentials, master
+- **Env vars:** `DATABASE_URL` (Neon pooled), `DIRECT_URL` (Neon direct),
+  Redis URL, Termii credentials, master
   encryption key, session/OTP secret. Gateway keys live encrypted in the
   database, never in env.
 

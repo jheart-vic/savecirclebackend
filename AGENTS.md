@@ -294,8 +294,10 @@ checks do not make the Blueprint unusable.
 
 ## Commands
 
-Node.js 22 + Express 5 + TypeScript + Prisma 7 (PostgreSQL), managed with npm.
-Copy `.env.example` to `.env` and set `DATABASE_URL` before any database command.
+Node.js 22 + Express 5 + TypeScript + Prisma 7 on Neon PostgreSQL, managed with
+npm. Copy `.env.example` to `.env` and set both Neon URLs before any database
+command: `DATABASE_URL` (pooled, used by the app) and `DIRECT_URL` (direct,
+used by Prisma migrations).
 
 - Dev server: `npm run dev` (http://localhost:3000, health check at `/health`)
 - Typecheck: `npm run typecheck`

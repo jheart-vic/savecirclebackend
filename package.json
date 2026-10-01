@@ -27,11 +27,20 @@
   },
   "homepage": "https://github.com/jheart-vic/savecirclebackend#readme",
   "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "bullmq": "^6.3.11",
+    "cors": "^2.8.6",
     "dotenv": "^18.0.5",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "ioredis": "^6.0.0",
+    "libphonenumber-js": "^1.13.14",
+    "pdf-lib": "^1.17.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.4",
     "prisma": "^7.10.0",
