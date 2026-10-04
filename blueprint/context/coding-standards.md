@@ -26,10 +26,17 @@
 
 ## Express
 
-- Keep route handlers thin: parse and validate the request, call the logic,
-  shape the response
-- Put business logic in plain functions that do not depend on `req` or `res`,
-  so it can be tested without an HTTP server
+- Layering is **Model - Service - Controller - Route** (project decision):
+  - **Route** (`<feature>.routes.ts`): one line per endpoint, path +
+    middleware + controller function. No logic.
+  - **Controller** (`<feature>.controller.ts`): parse and validate the
+    request, call the service, set cookies, send the response. No Prisma.
+  - **Service** (`<feature>.service.ts`): business rules, limits, and
+    transactions. No `req` or `res`, so it can be tested without HTTP.
+  - **Model** (`<feature>.model.ts`): Prisma queries only, no rules. Each
+    function takes an optional `db: Db = prisma` so services can pass a
+    transaction client.
+- Import layers as namespaces: `import * as authService from "./auth.service.js"`
 - Group routes by feature with an Express `Router`
 - Return the correct HTTP status code; never send `200` with an error body
 
@@ -43,12 +50,16 @@
 - `prisma/schema.prisma` and `prisma/migrations/` - schema and migrations
 - `prisma.config.ts` - Prisma 7 CLI config (schema path, datasource URL)
 
-> TODO: feature folders under `src/` are decided by the first feature. Do not
-> create empty layer folders in advance.
+- `src/<feature>/` - one folder per feature (for example `src/auth/`) with
+  the four layer files, plus `<feature>.validation.ts` (zod schemas),
+  `<feature>.middleware.ts`, and small helpers when needed
+- `src/config.ts` - validated env; `src/errors.ts` - `AppError` and handlers;
+  `src/validate.ts` - `parse(schema, data)` for request bodies
+- Do not create empty layer folders in advance
 
 ## Naming
 
-- Files: kebab-case
+- Files: kebab-case, with a dotted layer suffix (`auth.service.ts`)
 - Functions and variables: camelCase
 - Constants: SCREAMING_SNAKE_CASE
 - Types/Interfaces: PascalCase (no prefix)
@@ -100,8 +111,12 @@
   NG) before storing or comparing them
 - Hash OTPs, session tokens, and PINs with Node's built-in `crypto` (HMAC or
   `scrypt`); no extra hashing library
-- Call Paystack and Termii with the built-in `fetch`, behind the
+- Make every outbound HTTP call with `axios` (project decision), one
+  `axios.create({ baseURL, timeout })` instance per provider, behind the
   `PaymentProvider` and `Notifier` interfaces; no vendor SDKs
+- Never log or rethrow a raw axios error: it carries the request (API keys,
+  OTPs, BVNs). Convert it to a plain `Error` with only the status and a short
+  slice of the provider's response, as `src/termii.ts` does
 - `cors` allows only the frontend origin; `express-rate-limit` guards
   per-IP limits on public auth and PIN endpoints
 
@@ -113,7 +128,9 @@
 - Never leak stack traces or internal error messages in responses
 - Log the underlying error server-side
 
-> TODO: record the exact error response shape once the first endpoint exists.
+- Shape: `{ "error": { "code": "<snake_case>", "message": "<human text>" } }`
+- Throw `AppError(status, code, message)` from `src/errors.ts` for expected
+  errors; anything else becomes a 500 `internal_error` with a generic message
 
 ## Testing
 
