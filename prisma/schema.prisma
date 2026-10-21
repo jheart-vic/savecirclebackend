@@ -8,3 +8,73 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum AuthEventType {
+  otp_requested
+  otp_failed
+  signed_in
+  signed_out
+  session_revoked
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  phoneNumber String   @unique @map("phone_number")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sessions   Session[]
+  authEvents AuthEvent[]
+
+  @@map("users")
+}
+
+enum OtpPurpose {
+  sign_up
+  sign_in
+}
+
+model OtpChallenge {
+  id          String     @id @default(uuid()) @db.Uuid
+  phoneNumber String     @map("phone_number")
+  purpose     OtpPurpose
+  signupName  String?    @map("signup_name")
+  sendsSms    Boolean    @map("sends_sms")
+  codeHash    String     @map("code_hash")
+  expiresAt   DateTime   @map("expires_at") @db.Timestamptz(3)
+  attempts    Int        @default(0)
+  consumedAt  DateTime?  @map("consumed_at") @db.Timestamptz(3)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([phoneNumber, createdAt])
+  @@index([createdAt])
+  @@map("otp_challenges")
+}
+
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model AuthEvent {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String?       @map("user_id") @db.Uuid
+  phoneNumber String        @map("phone_number")
+  event       AuthEventType
+  ip          String
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([phoneNumber, createdAt])
+  @@map("auth_events")
+}

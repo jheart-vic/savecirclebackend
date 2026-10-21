@@ -38,8 +38,8 @@ later. Rotation start sits before payment logging because payments need cycles.
 
 Phase 1 - Tenancy and v3 core
 
-- [ ] 1. **Staff auth** - phone + OTP sign-in with hashed, rate-limited OTPs, revocable sessions, and an AuthEvent row for every OTP request, failure, sign-in, sign-out, and revocation
-- [ ] 2. **Organisations, roles, and isolation** - create an organisation (creator becomes Owner), invite staff with roles, switch organisations, and enforce organisation isolation with PostgreSQL row-level security set per request
+- [x] 1. **Staff auth** - phone + OTP sign-in with hashed, rate-limited OTPs, revocable sessions, and an AuthEvent row for every OTP request, failure, sign-in, sign-out, and revocation
+- [ ] 2. **Organisations, roles, and isolation** - create an organisation (creator becomes Owner), invite staff with roles, switch organisations, enforce organisation isolation with PostgreSQL row-level security set per request, and a per-organisation session lifetime set by its admin (default 30 days)
 - [ ] 3. **Groups and members** - rotating and thrift groups with amount, frequency, reminder schedule, and start date for thrift; add members by name and E.164 phone or bulk CSV; join order; officers assigned to groups
 - [ ] 4. **Rotation setup and start** - draft rotation seeded from join order, reorderable until start; start locks positions, takes a first due date, and generates one cycle per slot (monthly days 29 to 31 fall back to month end), each snapshotting the amount due
 - [ ] 5. **Cash logging and allocation engine** - officers log cash as a Payment; the engine splits it across the member's groups (oldest past-due first, then existing cycles by due date, thrift takes any amount) and turns any excess into member credit
@@ -56,7 +56,7 @@ Phase 1 - Tenancy and v3 core
 
 Phase 2 - Onboarding and accounts
 
-- [ ] 16. **Organisation onboarding** - resumable KYB flow (type, suggested money mode, documents, directors), ledger-only until rails are connected, and policies setup
+- [ ] 16. **Organisation onboarding** - the client's resumable four-step flow: organisation details (type, contact email and phone, suggested money mode), KYB document uploads to object storage, payment rails choice (Paystack live, Flutterwave and Bank API coming soon), and setup (policies, team, first group); ledger-only until rails are connected
 - [ ] 17. **PaymentProvider and Paystack adapter** - PaymentProvider interface, Paystack adapter, encrypted per-organisation keys and webhook secret, transfer-permission check, and the organisation collection account
 - [ ] 18. **Member verification and account numbers** - consented BVN/NIN capture (hashed), asynchronous account issuance with back-off retries, officer fix-and-retry after 3 failures, number delivered by message, blocked not deleted on exit
 
@@ -69,15 +69,15 @@ Phase 3 - Collections
 Phase 4 - Disbursements
 
 - [ ] 22. **Payout accounts** - name enquiry against the verified identity, 24-hour cooling period with a phone alert, PIN + OTP for changes
-- [ ] 23. **Approvals** - maker-checker engine with organisation limits, no self-approval, escalation before due dates, used by withdrawals, payouts, and transfer-funded reversals
-- [ ] 24. **Withdrawal notices** - thrift balances and member credit only; per-organisation policy with group overrides, available-balance checks, the notice lifecycle, member cancellation, PIN + OTP confirmation, and full-balance exits
+- [ ] 23. **Approvals** - maker-checker engine with organisation limits, no self-approval, escalation before due dates, used by withdrawals (unless the organisation turns withdrawal approval off), payouts, and transfer-funded reversals
+- [ ] 24. **Withdrawal notices** - thrift balances and member credit only; per-organisation policy (including allow member withdrawals and require approval) with group overrides, available-balance checks, the notice lifecycle, member cancellation, PIN + OTP confirmation, and full-balance exits
 - [ ] 25. **Transfer engine** - scheduled 09:00 WAT execution with pre-flight checks, idempotency keys, success and failure webhooks, retries (max 3), float shortfall hold-and-alert, and daily caps
 - [ ] 26. **Automatic rotating payouts** - payout created when a cycle is fully funded, short-cycle choice (pay now and top up, or wait), cycle-allocated contributions locked from withdrawal, and leaver refunds, buy-ins, and dissolve settlements paid by approved transfer outside withdrawal policy
 - [ ] 27. **Early-payout risk controls** - optional organisation policies: suggested slot order by payment history, a required guarantor for early slots, and a holdback on early payouts released when the member's remaining cycles are paid or applied to their arrears if they leave
 
 Phase 5 - Reconciliation and hardening
 
-- [ ] 28. **Nightly reconciliation** - provider settlement report vs ledger, with exceptions for the finance approver
+- [ ] 28. **Nightly reconciliation** - provider settlement report vs ledger, with exceptions for the treasurer
 - [ ] 29. **Statement export** - `pdf-lib` statement of a group's or member's history
 - [ ] 30. **Hardening** - limits and alerts review, plus load and failure testing in gateway test mode
 

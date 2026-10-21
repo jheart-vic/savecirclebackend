@@ -1,6 +1,6 @@
 # SaveCircle - Project Overview
 
-<!-- blueprint:source-hash f440caf1b4cdd5b65f2268f14a604f221916be9739836e897894535fbe844c13 -->
+<!-- blueprint:source-hash 08b5ce2b8d81f02bed10a571b20830e8c2eee599eea187cf44474567b0f0fb11 -->
 
 > Backend API for SaveCircle: collections and payout software that MFBs,
 > banks, and cooperatives run their ajo and thrift products on. Money moves
@@ -12,19 +12,19 @@
 
 ## Problem
 
-Savings groups run on paper and WhatsApp; banks and MFBs running contribution
-products collect cash by hand (with agent leakage), reconcile pooled transfers
-in spreadsheets days later, and enforce withdrawal notice on paper. SaveCircle
-gives each member a dedicated account number, matches payments automatically,
-shows one shared ledger, and sends payouts and withdrawals by transfer with
-approvals. Informal groups keep a free ledger-only tier.
+Savings groups and MFB contribution products run on paper, cash, and
+spreadsheet reconciliation. SaveCircle gives each member an account number,
+matches payments automatically, shows one shared ledger, and pays out by
+transfer with approvals. Informal groups keep a free ledger-only tier.
 
 ## Users
 
 - **Organisation** (MFB, bank, cooperative, business, informal) - the
   customer; brings its own rails.
-- **Staff roles** per organisation: Owner, Admin, Finance approver (checker),
-  Branch manager, Officer/treasurer (maker), Auditor (read-only).
+- **Staff roles** per organisation (client design + Owner): Owner (creator),
+  Admin (full access), Treasurer (contributions, payouts, reports; checker),
+  Branch manager (branch; first approval), Field officer (groups, members,
+  cash; maker).
 - **Member** - no account; phone-wide PIN to view, PIN + fresh OTP for money
   actions.
 
@@ -54,47 +54,34 @@ templates, data protection lead, design-partner MFB) runs in parallel.
 Phase 1 - Tenancy and v3 core
 
 1. **Staff auth** - phone + OTP, sessions, AuthEvent.
-2. **Organisations, roles, and isolation** - Owner, invites, RLS.
+2. **Organisations, roles, and isolation** - Owner, invites, RLS, per-org
+   session lifetime.
 3. **Groups and members** - rotating and thrift, CSV upload.
 4. **Rotation setup and start** - order, first due date, cycles.
 5. **Cash logging and allocation engine** - split across groups, credit.
 6. **Reversals** - reasoned, re-allocation within 7 days.
 7. **Shared ledger and derived balances** (headline) - arrears, status,
    thrift and credit balances.
-8. **Who's next and cash payouts** - rotation completion and restart.
-9. **Thrift cycle rollover** - two-cycle horizon, pause, close.
-10. **Inactive members and gap resolution** - skip, reassign, hold, return.
+8. **Who's next and cash payouts** - completion and restart.
+9. **Thrift cycle rollover**. 10. **Inactive members and gap resolution**.
 11. **Rotation pause, close, and dissolve**.
-12. **Job queue and Notifier** - BullMQ, Render worker, Termii.
-13. **Reminders**.
-14. **SMS fallback**.
-15. **Member invites and PIN access** - read-only member view.
+12. **Job queue and Notifier** (BullMQ, Termii). 13. **Reminders**.
+14. **SMS fallback**. 15. **Member invites and PIN access**.
 
-Phase 2 - Onboarding and accounts
+Phase 2 - Onboarding: 16 **Organisation onboarding** (client's four-step
+flow), 17 **PaymentProvider and Paystack adapter**, 18 **Member verification
+and account numbers**.
 
-16. **Organisation onboarding** - resumable KYB.
-17. **PaymentProvider and Paystack adapter** - collection account.
-18. **Member verification and account numbers**.
+Phase 3 - Collections: 19 **Webhook ingress and auto-allocation**, 20
+**Unmatched queue**, 21 **Cash in hand**.
 
-Phase 3 - Collections
+Phase 4 - Disbursements: 22 **Payout accounts** (name enquiry, 24h cooling),
+23 **Approvals** (maker-checker), 24 **Withdrawal notices**, 25 **Transfer
+engine**, 26 **Automatic rotating payouts** (plus refunds, buy-ins,
+settlements), 27 **Early-payout risk controls**.
 
-19. **Webhook ingress and auto-allocation** - receipts.
-20. **Unmatched queue**.
-21. **Cash in hand**.
-
-Phase 4 - Disbursements
-
-22. **Payout accounts** - name enquiry, 24h cooling.
-23. **Approvals** - maker-checker engine.
-24. **Withdrawal notices**.
-25. **Transfer engine**.
-26. **Automatic rotating payouts** - plus refunds, buy-ins, settlements.
-27. **Early-payout risk controls** - history ordering, guarantor, holdback.
-
-Phase 5 - Reconciliation and hardening
-
-28. **Nightly reconciliation**. 29. **Statement export** (`pdf-lib`).
-30. **Hardening**.
+Phase 5: 28 **Nightly reconciliation**, 29 **Statement export**, 30
+**Hardening**.
 
 Later: 31 Flutterwave adapter, 32 branches and dashboard, 33 bank-hosted
 adapter, 34 white-label branding, 35 savings-history export, 36 monetization.
@@ -114,7 +101,9 @@ adapter, 34 white-label branding, 35 savings-history export, 36 monetization.
 ### Auth and access
 
 - Staff OTP: 6 digits, hashed, 10 minutes, 5 attempts, 3 requests per phone
-  per hour. Sessions revocable. AuthEvent on every OTP and session event.
+  per hour. Sessions revocable; 30 days by default, per-organisation lifetime
+  set by its admin. AuthEvent on every OTP and session event. Sign-up and
+  sign-in come before onboarding.
 - Member PIN: 4 to 6 digits, hashed, one per phone across all groups and
   organisations; set or confirmed on invite accept; reset by re-invite only;
   5 failures lock 30 minutes; rate-limited by IP and phone. Lookup shows only
@@ -123,10 +112,16 @@ adapter, 34 white-label branding, 35 savings-history export, 36 monetization.
 
 ### Accounts and verification
 
-- KYB: CAC or cooperative certificate or CBN licence, directors' BVNs,
-  settlement account. Onboarding is resumable; ledger-only until the
-  collection account is issued. Automatic withdrawals need the gateway to
-  allow API transfers.
+- Onboarding (client design, each step "save and continue later"):
+  **Organisation** (name, type, required contact email and phone, suggested
+  money mode) -> **KYB** -> **Payment Rails** (Paystack, Flutterwave, or Bank
+  API, then key entry, no redirect; only Paystack live, others "coming soon"
+  until features 31 and 33; collection account on success) -> **Setup**
+  (policies, team, first group). Ledger-only until the collection account is
+  issued. Automatic withdrawals need the gateway to allow API transfers.
+- KYB uploads (PDF, JPG, PNG, max 5 MB): certificate of incorporation,
+  MEMART, directors' ID (NIN or passport), TIN, premises evidence, optional
+  extras.
 - Member KYC: consented BVN or NIN. Unverified members pay cash only.
 - One account number per member per organisation, issued asynchronously,
   retried with back-off, officer fix-and-retry after 3 failures, blocked (not
@@ -167,9 +162,12 @@ past due). All balances derived, never stored.
 - Only thrift balances and member credit can be withdrawn. A contribution
   allocated to a rotating cycle belongs to that pot and is locked. Rotating
   leavers use the leaver flow, never a withdrawal notice.
-- Policy per organisation, overridable per group: notice period, instant
-  limit, lock-in, minimum balance, early-withdrawal fee, monthly count,
-  two-person threshold. All values set by the organisation.
+- Policy per organisation, overridable per group: allow member withdrawals,
+  require approval, notice period, instant limit, lock-in, minimum balance,
+  early-withdrawal fee, monthly count, two-person threshold. All values set by
+  the organisation. Approval off = no withdrawal needs a human (checks still
+  run); payouts, refunds, buy-ins, settlements, and transfer-funded reversals
+  always need maker + checker.
 - Every notice passes automatic policy checks. Below the instant limit:
   same-day, no human approval. Up to the two-person threshold: notice period,
   no human approval. Above it: maker + checker before the due date;
@@ -178,11 +176,11 @@ past due). All balances derived, never stored.
   executing (09:00 WAT, re-check balance, payout name, float; one transfer
   with the withdrawal ID as idempotency key) -> completed or failed (back to
   scheduled, retry next morning, max 3).
-- Float short: hold all of the day's withdrawals, alert finance, pay in
+- Float short: hold all of the day's withdrawals, alert treasurer, pay in
   due-date order once funded; never partial without consent.
 - Payout accounts: name must match verified identity; 24-hour cooling with a
-  phone alert. Daily caps per member and organisation; overs held for
-  finance.
+  phone alert. Daily caps per member and organisation; overs held for the
+  treasurer.
 
 ### Rotation
 
@@ -272,9 +270,13 @@ append-only.
 
 **Organisation**
 
-- **Organisation** - `id`, `name`, `type` (enum), `money_mode` (bank |
-  gateway | ledger), `provider`, `kyb_status`, `branding` (json), `policy`
-  (json), `created_at`
+- **Organisation** - `id`, `name`, `type` (enum), `contact_email`,
+  `contact_phone`, `money_mode` (bank | gateway | ledger), `provider`,
+  `kyb_status`, `onboarding_step`, `branding` (json), `policy` (json:
+  `default_frequency`, `withdrawals_enabled`, `withdrawal_approval_required`,
+  notice, limits, fees, `session_ttl_days`), `created_at`
+- **KybDocument** - `id`, `organisation_id`, `kind` (enum), `file_key`,
+  `file_name`, `content_type`, `size_bytes`, `uploaded_by`, `created_at`
 - **Branch** - `id`, `organisation_id`, `name`, `manager_user_id?`
 - **OrgMembership** - `id`, `organisation_id`, `user_id`, `role` (enum),
   `branch_id?`, `status`
@@ -343,9 +345,8 @@ append-only.
   `before`, `after`, `created_at`
 
 > Locked shapes: `Organisation`, `Group`, `Member`, `Cycle`, `Payment`,
-> `Contribution`, and `Transfer` feed allocation, balances, reminders,
-> disbursement, and reconciliation. Change them only with a migration and a
-> check of every later feature.
+> `Contribution`, `Transfer` feed every later money feature. Change them only
+> with a migration and a check of every later feature.
 
 ## Tech stack
 
@@ -354,8 +355,8 @@ append-only.
   URL, migrations on the direct URL; RLS via a per-request transaction that
   sets the organisation transaction-locally; the app role must not bypass RLS
 - **zod, libphonenumber-js, cors, express-rate-limit** - validation, E.164
-  phones, frontend origin, per-IP limits; hashing via built-in `crypto`,
-  providers via built-in `fetch`
+  phones, frontend origin, per-IP limits; hashing via built-in `crypto`;
+  `axios` for every outbound API call
 - **PaymentProvider interface** - Paystack first, Flutterwave later, then
   per-bank adapters
 - **Termii behind `Notifier`** - WhatsApp and SMS, delivery reports
@@ -363,6 +364,7 @@ append-only.
   `node-cron`)
 - **AES-256-GCM** - per-organisation secrets under an env master key
 - **pdf-lib** - statements
+- **Object storage** - KYB uploads; provider not chosen (feature 16)
 - **Frontend (separate repo)** - Next.js PWA, TanStack Query
 
 ## Monetization
@@ -373,7 +375,8 @@ Not in this build; the pilot is free. Feature 36 decides the model.
 
 No UI here. The API must serve member views (account number, balance,
 arrears, payout date, ledger, withdrawals), the officer exceptions list, the
-admin dashboard, and the finance approval digest.
+admin dashboard, the treasurer approval digest, and the client's four-step
+onboarding design.
 
 > TODO: no routes are named in the plans. Each feature spec defines its
 > endpoints.
@@ -383,11 +386,9 @@ admin dashboard, and the finance approval digest.
 - **Render:** web service (API + webhooks), background worker (BullMQ), Key
   Value (Redis). **Neon** for PostgreSQL.
 - **Migrations:** `prisma migrate deploy` before start
-- **Env vars:** `DATABASE_URL` (Neon pooled), `DIRECT_URL` (Neon direct),
-  Redis URL, Termii credentials, master
-  encryption key, session/OTP secret. Gateway keys live encrypted in the
-  database, never in env.
-
+- **Env vars:** `DATABASE_URL` (pooled), `DIRECT_URL` (direct), Redis URL,
+  Termii credentials, master key, session/OTP secret. Gateway keys live
+  encrypted in the database, never in env.
 - **Build:** `npm ci && npm run db:generate && npm run build`
 - **Start (web):** `npm run db:deploy && npm run start`; health check `/health`
 
@@ -400,3 +401,4 @@ admin dashboard, and the finance approval digest.
 - **Needs outside input:** legal opinion on gateway mode, gateway fees and
   transfer limits, Termii WhatsApp quote and template submission,
   design-partner MFB. None blocks Phase 1.
+- **KYB object storage provider** - decide in the feature 16 spec.
