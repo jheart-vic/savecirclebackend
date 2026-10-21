@@ -28,7 +28,6 @@ database models exist yet; feature 1 adds the first ones.
 - Termii quote for Nigerian WhatsApp utility templates; ask whether Termii submits templates
 - Meta business verification and reminder template submission
 - Appoint a data protection lead
-- Pick the design-partner MFB for bank-hosted mode (needed after the pilot)
 
 ## Your features
 
@@ -56,7 +55,7 @@ Phase 1 - Tenancy and v3 core
 
 Phase 2 - Onboarding and accounts
 
-- [ ] 16. **Organisation onboarding** - the client's resumable four-step flow: organisation details (type, contact email and phone, suggested money mode), KYB document uploads to object storage, payment rails choice (Paystack live, Flutterwave and Bank API coming soon), and setup (policies, team, first group); ledger-only until rails are connected
+- [ ] 16. **Organisation onboarding** - the client's resumable four-step flow: organisation details (type, contact email and phone, suggested money mode), KYB document uploads to object storage, payment rails choice (Paystack live, Flutterwave coming soon), and setup (policies, team, first group); ledger-only until rails are connected
 - [ ] 17. **PaymentProvider and Paystack adapter** - PaymentProvider interface, Paystack adapter, encrypted per-organisation keys and webhook secret, transfer-permission check, and the organisation collection account
 - [ ] 18. **Member verification and account numbers** - consented BVN/NIN capture (hashed), asynchronous account issuance with back-off retries, officer fix-and-retry after 3 failures, number delivered by message, blocked not deleted on exit
 
@@ -85,7 +84,7 @@ Later (Should and Could)
 
 - [ ] 31. **Second gateway adapter** - Flutterwave
 - [ ] 32. **Branches and organisation dashboard** - optional branches with branch managers, and the admin dashboard
-- [ ] 33. **Bank-hosted adapter** - core-banking adapter for the design-partner MFB (after the pilot)
+- [ ] 33. **Bank-hosted adapter** - deferred: banks and MFBs are out of scope for now (decision of 2026-10-21)
 - [ ] 34. **White-label branding and sender ID** - organisation name, logo, colour, and sender ID
 - [ ] 35. **Savings-history export for loan underwriting**
 - [ ] 36. **Monetization** - pricing model not chosen yet (per active member, per organisation, or a share of collection fees)

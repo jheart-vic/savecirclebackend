@@ -1,9 +1,9 @@
 # SaveCircle - Project Overview
 
-<!-- blueprint:source-hash 08b5ce2b8d81f02bed10a571b20830e8c2eee599eea187cf44474567b0f0fb11 -->
+<!-- blueprint:source-hash 638b99705d9d8c034f1eae3962ba3af4fb3f70e27c88d93ee86f14519b4d3b9c -->
 
-> Backend API for SaveCircle: collections and payout software that MFBs,
-> banks, and cooperatives run their ajo and thrift products on. Money moves
+> Backend API for SaveCircle: collections and payout software that
+> cooperatives and businesses run their ajo and thrift products on. Money moves
 > only through each organisation's own licensed accounts, never SaveCircle's.
 
 > **Generated file. Don't hand-edit.** Change `blueprint/project-plan.md` or
@@ -12,15 +12,15 @@
 
 ## Problem
 
-Savings groups and MFB contribution products run on paper, cash, and
+Savings groups and cooperative contribution products run on paper, cash, and
 spreadsheet reconciliation. SaveCircle gives each member an account number,
 matches payments automatically, shows one shared ledger, and pays out by
 transfer with approvals. Informal groups keep a free ledger-only tier.
 
 ## Users
 
-- **Organisation** (MFB, bank, cooperative, business, informal) - the
-  customer; brings its own rails.
+- **Organisation** (cooperative, business, informal) - the customer; brings
+  its own rails. Banks and MFBs: out of scope for now.
 - **Staff roles** per organisation (client design + Owner): Owner (creator),
   Admin (full access), Treasurer (contributions, payouts, reports; checker),
   Branch manager (branch; first approval), Field officer (groups, members,
@@ -33,13 +33,14 @@ several organisations and switches after sign-in.
 
 ## Usage model
 
-- **Pilot:** 8 weeks; one cooperative in gateway mode, one MFB design partner.
+- **Pilot:** 8 weeks; one cooperative in gateway mode.
 - **Reachability:** internet-facing API that receives provider webhooks.
 - **Tenancy:** Organisation -> Branch (optional) -> Group -> Member. Every
   tenant row has `organisation_id`, enforced by PostgreSQL RLS set per
   request. Cross-organisation access only for SaveCircle support, logged.
 - **Regulatory:** no SaveCircle custody or pooled accounts. Live gateway-mode
-  money waits for a written legal opinion; fallback is bank-hosted only.
+  money waits for a written legal opinion; the fallback if it needs a
+  licence is open (no bank-hosted mode while banks are out).
 - **Data protection:** BVN/NIN hashed with consent records (NDPA).
 - **Audit:** money tables append-only; every approval, hold, override, and
   reversal logged with person and reason. Money instructions are cancelled or
@@ -49,7 +50,7 @@ several organisations and switches after sign-in.
 ## Features
 
 Build-plan order. Phase 0 (legal, gateway account, fees, Termii quote, Meta
-templates, data protection lead, design-partner MFB) runs in parallel.
+templates, data protection lead) runs in parallel.
 
 Phase 1 - Tenancy and v3 core
 
@@ -84,14 +85,12 @@ Phase 5: 28 **Nightly reconciliation**, 29 **Statement export**, 30
 **Hardening**.
 
 Later: 31 Flutterwave adapter, 32 branches and dashboard, 33 bank-hosted
-adapter, 34 white-label branding, 35 savings-history export, 36 monetization.
+adapter (deferred: banks out of scope), 34 white-label branding, 35 savings-history export, 36 monetization.
 
 ## Business rules
 
 ### Money modes (per organisation)
 
-- **Bank-hosted** (MFBs, banks): funds in the bank's books; accounts from its
-  core-banking API via a per-bank adapter.
 - **Gateway-hosted** (cooperatives, businesses): funds in the organisation's
   own Paystack/Flutterwave balance; dedicated virtual accounts; keys stored
   encrypted per organisation.
@@ -114,9 +113,10 @@ adapter, 34 white-label branding, 35 savings-history export, 36 monetization.
 
 - Onboarding (client design, each step "save and continue later"):
   **Organisation** (name, type, required contact email and phone, suggested
-  money mode) -> **KYB** -> **Payment Rails** (Paystack, Flutterwave, or Bank
-  API, then key entry, no redirect; only Paystack live, others "coming soon"
-  until features 31 and 33; collection account on success) -> **Setup**
+  money mode) -> **KYB** -> **Payment Rails** (Paystack or Flutterwave, then key
+  entry, no redirect; only Paystack live, Flutterwave "coming soon" until
+  feature 31; the design's Bank API option is dropped; collection account
+  on success) -> **Setup**
   (policies, team, first group). Ledger-only until the collection account is
   issued. Automatic withdrawals need the gateway to allow API transfers.
 - KYB uploads (PDF, JPG, PNG, max 5 MB): certificate of incorporation,
@@ -271,7 +271,7 @@ append-only.
 **Organisation**
 
 - **Organisation** - `id`, `name`, `type` (enum), `contact_email`,
-  `contact_phone`, `money_mode` (bank | gateway | ledger), `provider`,
+  `contact_phone`, `money_mode` (gateway | ledger), `provider`,
   `kyb_status`, `onboarding_step`, `branding` (json), `policy` (json:
   `default_frequency`, `withdrawals_enabled`, `withdrawal_approval_required`,
   notice, limits, fees, `session_ttl_days`), `created_at`
@@ -357,8 +357,7 @@ append-only.
 - **zod, libphonenumber-js, cors, express-rate-limit** - validation, E.164
   phones, frontend origin, per-IP limits; hashing via built-in `crypto`;
   `axios` for every outbound API call
-- **PaymentProvider interface** - Paystack first, Flutterwave later, then
-  per-bank adapters
+- **PaymentProvider interface** - Paystack first, Flutterwave later
 - **Termii behind `Notifier`** - WhatsApp and SMS, delivery reports
 - **BullMQ on Redis** - idempotent jobs and repeatable schedules (replaces
   `node-cron`)
@@ -399,6 +398,6 @@ onboarding design.
 > Resolve in the plans, then re-run `/overview`.
 
 - **Needs outside input:** legal opinion on gateway mode, gateway fees and
-  transfer limits, Termii WhatsApp quote and template submission,
-  design-partner MFB. None blocks Phase 1.
+  transfer limits, Termii WhatsApp quote and template submission, and the
+  licensing fallback if gateway mode needs a licence. None blocks Phase 1.
 - **KYB object storage provider** - decide in the feature 16 spec.

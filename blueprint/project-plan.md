@@ -10,9 +10,9 @@
 
 Ajo, esusu, and cooperative thrift groups run on paper registers and WhatsApp
 messages: no shared record of who paid or whose turn it is, disputes with no
-trail, one treasurer carrying everything. Banks and microfinance banks (MFBs)
-that offer daily or weekly contribution savings have the same problem at
-scale, plus their own:
+trail, one treasurer carrying everything. Cooperatives and businesses that
+run daily or weekly contribution savings for their members have the same
+problem at scale, plus their own:
 
 - **Cash collection is expensive and leaky.** Field officers collect cash in
   markets; agents collecting and not remitting is a known loss; every naira is
@@ -39,8 +39,8 @@ groups keep a free ledger-only tier that works like v3.
 
 | User | What they need |
 |---|---|
-| MFB / bank (organisation) | Lower collection cost, real-time reconciliation, deposit growth, savings data for lending, audit trail |
 | Cooperative society | Member contributions, notice-based withdrawals, transparent records for the AGM |
+| Registered business (organisation) | Lower collection cost, real-time reconciliation, savings data, audit trail |
 | Branch manager / field officer | See their groups, chase arrears, log cash where it is still used |
 | Group treasurer | Know who paid without chasing; payouts that go out on time |
 | Member | Pay by transfer from any bank app, see their balance, request a withdrawal from their phone |
@@ -123,7 +123,7 @@ also need a fresh OTP. Members who never open the link still get reminders.
 | 10 | v3 core: groups, rotation, ledger, arrears, reminders, inactive members, thrift groups | Must |
 | 11 | Second gateway adapter | Should |
 | 12 | Branches and org dashboard | Should |
-| 13 | Bank-hosted adapter for a design-partner MFB | Should (after pilot) |
+| 13 | Bank-hosted adapter | Deferred: banks and MFBs are out of scope for now |
 | 14 | White-label branding and sender ID | Should |
 | 15 | Savings-history export for loan underwriting | Could |
 
@@ -132,7 +132,10 @@ core is built directly on the v4 tenancy model (every table carries
 `organisation_id` from the first migration). No v3-to-v4 migration is needed.
 
 **Out of scope:** SaveCircle holding funds, loans and interest, cards, and any
-pooled account in SaveCircle's name.
+pooled account in SaveCircle's name. Banks and microfinance banks (MFBs) as
+customers, and the bank-hosted money mode, are out of scope for now (decision
+of 2026-10-21); SaveCircle focuses on cooperatives, registered businesses, and
+informal groups.
 
 ## 4. Money model, identity, and tenancy rules
 
@@ -140,7 +143,6 @@ pooled account in SaveCircle's name.
 
 | Mode | For | Where funds sit | Account numbers from |
 |---|---|---|---|
-| Bank-hosted | MFBs and banks | The bank's own books | The bank's core banking API, through a per-bank adapter |
 | Gateway-hosted | Cooperatives and registered businesses | The organisation's own Paystack or Flutterwave balance, settling to its bank | Dedicated virtual accounts under the organisation's gateway business |
 | Ledger-only | Informal groups (free tier) | Off-app, as in v3 | None; manual logging |
 
@@ -172,8 +174,7 @@ Gateway collection fees are paid by the organisation.
   tenant record belongs to exactly one organisation.
 - Every tenant table carries `organisation_id`, enforced by PostgreSQL
   row-level security set from the session, not only by application code.
-- Gateway keys, webhook secrets, and bank adapter credentials are encrypted
-  per organisation.
+- Gateway keys and webhook secrets are encrypted per organisation.
 - Webhooks are routed to an organisation by account number (or by transfer
   reference for outbound events), then the signature is checked with that
   organisation's secret.
@@ -190,15 +191,15 @@ Organisation, KYB Verification, Payment Rails, Setup & Complete.
 
 1. **Organisation:** name, type, contact email, and contact phone, all
    required and stored on the organisation (not used for sign-in). SaveCircle
-   suggests a money mode from the type (MFB or bank -> bank-hosted;
-   cooperative or business -> gateway-hosted; informal -> ledger-only).
+   suggests a money mode from the type (cooperative or business ->
+   gateway-hosted; informal -> ledger-only).
 2. **KYB Verification:** uploads the KYB documents ("Verification in
    progress").
-3. **Payment Rails:** picks Paystack, Flutterwave, or Bank API, then enters
-   that provider's keys (a bank enters core-banking credentials with
-   SaveCircle's integration team). There is no redirect to the provider.
-   Only Paystack works at first; Flutterwave and Bank API show as coming soon
-   until their adapters ship. SaveCircle registers the webhook and checks
+3. **Payment Rails:** picks Paystack or Flutterwave, then enters that
+   provider's keys. There is no redirect to the provider. Only Paystack works
+   at first; Flutterwave shows as coming soon until its adapter ships. The
+   client's design also shows a Bank API option, which is dropped while banks
+   are out of scope. SaveCircle registers the webhook and checks
    that API-initiated transfers are allowed before enabling automatic
    withdrawals. On success it issues the organisation's collection account
    and shows bank, number, and name with copy and share buttons.
@@ -539,9 +540,9 @@ row-level security. Money tables (`Payment`, `Contribution`, `MemberCredit`,
 
 ### Organisation
 
-- **Organisation:** id, name, type (mfb/bank/cooperative/business/informal),
-  contact_email, contact_phone, money_mode (bank/gateway/ledger), provider
-  (paystack/flutterwave/bank_x), kyb_status, onboarding_step, branding,
+- **Organisation:** id, name, type (cooperative/business/informal),
+  contact_email, contact_phone, money_mode (gateway/ledger), provider
+  (paystack/flutterwave), kyb_status, onboarding_step, branding,
   policy (json: default_frequency, withdrawals_enabled,
   withdrawal_approval_required, notice, limits, fees, session_ttl_days),
   created_at
@@ -628,7 +629,7 @@ This repo:
 - **Payments:** a `PaymentProvider` interface (`createCustomer`,
   `verifyIdentity`, `issueAccount`, `verifyTransaction`,
   `resolveAccountName`, `transfer`, `fetchSettlement`). First adapter:
-  Paystack. Later: Flutterwave, then one adapter per partner bank.
+  Paystack. Later: Flutterwave.
 - **Notifications:** Termii for WhatsApp and SMS, behind a `Notifier`
   interface.
 - **Jobs:** BullMQ on Redis for account issuance, allocation, transfers,
@@ -670,14 +671,14 @@ Query, PWA-first.
 - **Pricing?** Not decided and not in this build. The pilot is free;
   monetization stays a later feature (per the earlier decision). Gateway fees
   are paid by the organisation either way.
-- **Which MFB is the design partner?** A business decision only the founders
-  can make. It does not block anything until after the pilot, because the
-  bank-hosted adapter is built after it.
+- **Banks and MFBs?** Out of scope for now (decision of 2026-10-21). There is
+  no bank-hosted mode and no design-partner MFB; feature 33 is deferred.
 - **Legal opinion on gateway-hosted mode.** Needs a lawyer; it can't be
   answered here. Build and test gateway mode in test mode during Phase 0;
   don't take live money in gateway mode until the written opinion arrives. If
-  it says gateway mode needs a licence, fall back to bank-hosted mode through
-  a licensed MFB partner.
+  it says gateway mode needs a licence, the fallback is open: with banks out
+  of scope, there is no bank-hosted mode to fall back to. Decide with the
+  lawyer (for example, collecting through a licensed partner).
 
 ### Early-payout risk controls (v4 section 6.5)
 
@@ -725,7 +726,7 @@ v4 lists the three controls but not how they work. Decisions:
   double-send.
 - **Secrets store:** Render has no managed KMS, so per-organisation secrets
   are encrypted in the app with a master key held in a Render environment
-  variable. Move to a cloud KMS if a bank partner requires it.
+  variable. Move to a cloud KMS if a customer requires it.
 - **Members across organisations:** a member's PIN session can see groups in
   several organisations. The member picks a group, and the request sets that
   group's organisation for RLS, as staff requests do.
@@ -737,7 +738,8 @@ v4 lists the three controls but not how they work. Decisions:
 - Termii quote for Nigerian WhatsApp utility templates, and whether Termii
   submits templates on SaveCircle's behalf.
 - Paystack and Flutterwave current fees and transfer limits.
-- The legal opinion and the design-partner MFB (above).
+- The legal opinion, and the licensing fallback if gateway mode needs a
+  licence (above).
 
 ## 11. Monetize - How will this make money?
 
@@ -779,8 +781,7 @@ Host: Render for the app, Neon for the database.
 
 ## 14. Usage model and constraints (optional)
 
-- **Pilot:** 8 weeks. One cooperative in gateway-hosted mode; one MFB as
-  design partner for bank-hosted mode.
+- **Pilot:** 8 weeks. One cooperative in gateway-hosted mode.
 - **Operation:** internet-facing API; receives provider webhooks.
 - **Tenancy:** multi-tenant by organisation with database-enforced isolation.
 - **Regulatory:** no SaveCircle custody; legal opinion required before live
@@ -803,7 +804,8 @@ Host: Render for the app, Neon for the database.
 
 ### Risks
 
-- **Licensing:** fall back to bank-hosted only if gateway mode needs a licence.
+- **Licensing:** if gateway mode needs a licence, the fallback is still open
+  (see section 10).
 - **Verification friction:** members may resist sharing BVN/NIN; explain why,
   keep cash as a path, measure drop-off.
 - **Organisation float:** automatic withdrawals fail if the balance is short;
@@ -813,6 +815,5 @@ Host: Render for the app, Neon for the database.
 - **Default after payout:** still the main ajo loss. Payment-history ordering,
   guarantors, and holdbacks reduce it; SaveCircle still cannot recover money
   from a member who stops paying.
-- **Bank integrations are slow:** bank mode follows the pilot.
 - **WhatsApp approval lead time:** if Meta approval slips, reminders launch
   SMS-only.
