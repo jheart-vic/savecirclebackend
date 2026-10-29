@@ -299,11 +299,20 @@ organisation has no branches).
 - Cash in hand older than 48 hours is flagged to the branch manager (or
   admins without branches).
 - Members get a receipt for cash too.
-- Members confirm each cash entry from their phone (user decision,
-  2026-10-28). An entry the member has not confirmed is flagged to the branch
-  manager (or admins without branches). The confirmation window, whether an
-  unconfirmed entry still counts toward balances, and how a disputed entry is
-  handled are decided in feature 21's spec.
+- Members confirm each cash handover on the spot (user decision, 2026-10-29):
+  when the officer logs the payment, the member's phone receives a one-time
+  SMS code, which the member reads to the officer to confirm the entry. A
+  member without a phone or signal can still pay; the entry is logged as
+  unconfirmed and flagged. Members are told "no code, no receipt, don't pay".
+- Cash disputes (feature 21b): a member, or staff on their behalf, can report
+  cash paid but not recorded (date, amount, officer, group, note, optional
+  photo). The officer must respond; a branch manager or admin who is not the
+  accused officer upholds or rejects it. Upheld creates the payment, marked as
+  added after the dispute; rejected closes with a reason. A claim never
+  changes a balance by itself. Repeated upheld disputes for one officer and
+  repeated rejected claims from one member are flagged; unanswered disputes
+  escalate. Code length and validity, and escalation timing, are decided in
+  the feature specs.
 
 ### Daily reconciliation
 

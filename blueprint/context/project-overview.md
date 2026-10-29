@@ -1,6 +1,6 @@
 # SaveCircle - Project Overview
 
-<!-- blueprint:source-hash 17663d1abc3fa9a9fe3cf87979563f1be8f1e0eb7dfce3538504ac5380b6e49e -->
+<!-- blueprint:source-hash 8dce38bab0e14472dd4d281a3321d1f72cdda4cf1622e3463cce3f12d8ad1ecd -->
 
 > Backend API for SaveCircle: collections and payout software that
 > cooperatives and businesses run their ajo and thrift products on. Money moves
@@ -74,7 +74,7 @@ flow), 17 **PaymentProvider and Paystack adapter**, 18 **Member verification
 and account numbers**.
 
 Phase 3 - Collections: 19 **Webhook ingress and auto-allocation**, 20
-**Unmatched queue**, 21 **Cash in hand**.
+**Unmatched queue**, 21 **Cash in hand and disputes**.
 
 Phase 4 - Disbursements: 22 **Payout accounts** (name enquiry, 24h cooling),
 23 **Approvals** (maker-checker), 24 **Withdrawal notices**, 25 **Transfer
@@ -140,8 +140,8 @@ adapter (deferred: banks out of scope), 34 white-label branding, 35 savings-hist
 - Unmatched queue: payments to the collection account or blocked accounts;
   officer assigns or marks for refund; escalate after 3 days.
 - Cash: channel `cash`, tagged with the officer; cash-in-hand = logged -
-  deposited; flag after 48 hours; cash receipts; members confirm each entry
-  by phone, unconfirmed ones flagged (feature 21).
+  deposited; flag after 48 hours; cash receipts; member confirms each
+  handover with an SMS code (21a); unrecorded-cash disputes (21b).
 - Escalations to a branch manager go to admins when there are no branches.
 - Nightly reconciliation of provider settlement vs ledger opens exceptions;
   nothing fixed silently.

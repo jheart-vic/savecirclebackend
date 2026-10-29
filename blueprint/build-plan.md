@@ -66,7 +66,9 @@ Phase 3 - Collections
 
 - [ ] 19. **Webhook ingress and auto-allocation** - signed webhooks routed to the organisation, raw event stored, duplicates dropped, transaction re-verified, Payment created and allocated, receipt sent, pending reminders cancelled
 - [ ] 20. **Unmatched queue** - payments to the collection account or blocked accounts, with officer assignment or refund marking and escalation after 3 days
-- [ ] 21. **Cash in hand** - per-officer cash-in-hand balance cleared by deposits, 48-hour flagging, cash receipts to members, and member confirmation of each cash entry from their phone (unconfirmed entries are flagged)
+- [ ] 21. **Cash in hand and disputes** - officer cash control, member confirmation at handover, and a fair way to resolve unrecorded-cash claims
+  - [ ] 21a. **Cash in hand and handover confirmation** - per-officer cash-in-hand balance cleared by deposits, 48-hour flagging, cash receipts, and the member confirming each cash handover with a one-time SMS code read to the officer (no phone: logged as unconfirmed and flagged); members are told "no code, no receipt, don't pay"
+  - [ ] 21b. **Cash disputes** - a member (or staff on their behalf) reports cash paid but not recorded (date, amount, officer, group, note, optional photo); the officer must respond; a branch manager or admin, never the accused officer, upholds or rejects; upheld creates the payment marked as added after the dispute; a claim never changes a balance by itself; repeated upheld disputes per officer and repeated rejected claims per member are flagged; unanswered disputes escalate
 
 Phase 4 - Disbursements
 
