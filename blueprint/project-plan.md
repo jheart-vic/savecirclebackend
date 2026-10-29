@@ -189,8 +189,8 @@ Gateway collection fees are paid by the organisation.
 The client's design has four steps after sign-up or sign-in (phone + OTP):
 Organisation, KYB Verification, Payment Rails, Setup & Complete.
 
-1. **Organisation:** name, type, contact email, and contact phone, all
-   required and stored on the organisation (not used for sign-in). SaveCircle
+1. **Organisation:** name, type, and contact phone (required), plus an
+   optional contact email, stored on the organisation (not used for sign-in). SaveCircle
    suggests a money mode from the type (cooperative or business ->
    gateway-hosted; informal -> ledger-only).
 2. **KYB Verification:** uploads the KYB documents ("Verification in
@@ -299,6 +299,11 @@ organisation has no branches).
 - Cash in hand older than 48 hours is flagged to the branch manager (or
   admins without branches).
 - Members get a receipt for cash too.
+- Members confirm each cash entry from their phone (user decision,
+  2026-10-28). An entry the member has not confirmed is flagged to the branch
+  manager (or admins without branches). The confirmation window, whether an
+  unconfirmed entry still counts toward balances, and how a disputed entry is
+  handled are decided in feature 21's spec.
 
 ### Daily reconciliation
 
@@ -541,7 +546,7 @@ row-level security. Money tables (`Payment`, `Contribution`, `MemberCredit`,
 ### Organisation
 
 - **Organisation:** id, name, type (cooperative/business/informal),
-  contact_email, contact_phone, money_mode (gateway/ledger), provider
+  contact_email (optional), contact_phone, money_mode (gateway/ledger), provider
   (paystack/flutterwave), kyb_status, onboarding_step, branding,
   policy (json: default_frequency, withdrawals_enabled,
   withdrawal_approval_required, notice, limits, fees, session_ttl_days),

@@ -86,6 +86,17 @@
 - Every tenant table has `organisation_id` under PostgreSQL row-level
   security. Tenant queries run inside a transaction that sets the current
   organisation first; the app's database role must not bypass RLS
+- Run every tenant query through `withOrg(orgId, userId, fn)` or
+  `withUser(userId, fn)` from `src/tenancy.ts`, passing the `tx` they give you
+  to model functions. Never query a tenant table with the bare `prisma` client
+  (with no context it returns no rows)
+- RLS trusts the organisation context it is given, so call `withOrg` only
+  after `requireOrgMember` has confirmed an active membership; the user id
+  always comes from the session
+- Each new tenant table's migration enables RLS and adds SELECT, INSERT, and
+  UPDATE policies on `app_current_org()`; add a DELETE policy only when the
+  feature truly deletes rows. Migrations run as the owner (`DIRECT_URL`); the
+  app connects as `savecircle_app` (`DATABASE_URL`), which cannot bypass RLS
 - Balances and arrears are derived by query, never stored
 
 ## Money movement and webhooks

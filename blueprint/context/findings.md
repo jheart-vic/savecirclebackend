@@ -14,3 +14,11 @@
 **Why it matters:** The spec says at most `OTP_DAILY_LIMIT` texted challenges in 24 hours. `requestCode` counts texted challenges (line 56) and inserts the new one (line 65) inside a transaction that holds only the per-phone advisory lock (line 46). Requests for different phones do not serialise, and under PostgreSQL's default READ COMMITTED each concurrent transaction sees the same count before any of them commits, so N parallel requests made while the count is at `OTP_DAILY_LIMIT - 1` all pass and all send an SMS. The overshoot is bounded by how many requests are in flight at once (pool size, per-IP limiter, one Turnstile token each), so this is a soft overrun of the spend cap, not an unbounded one, hence P3. Not reproduced at runtime; confirmed from the code path.
 **Suggested fix:** Needs a user decision (fix or accept). Smallest fix: take one fixed global advisory lock (for example `pg_advisory_xact_lock(<constant>)`) just before the cap count, so the count-and-insert for texted codes is serialised platform-wide; at pilot volume the extra wait is small. Alternatively accept a small overshoot and record why. No current requirement is lost.
 **Resolution:**
+
+### F-11 [P3] open - requireOrgMember opens its own tenant transaction instead of the service
+
+**File:** src/organisations/organisations.middleware.ts:23
+**Found:** 2026-10-29 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The coding standards put transactions in the service layer, and the other two read paths (`listOrganisations`, `getOrganisation`) open `withUser`/`withOrg` inside the service. The middleware instead calls `withUser` itself and passes `tx` to `orgService.findActiveMembership` (src/organisations/organisations.service.ts:37), which is a one-line pass-through to the model that exists only to carry the transaction client. Two patterns for the same thing make it easier for later org-scoped code to pick the wrong one. No behaviour or isolation defect: the membership lookup is correctly scoped by the session user under RLS.
+**Suggested fix:** Make the service function `findActiveMembership(organisationId, userId)` open `withUser` itself and drop the `tx` parameter; the middleware then calls it without importing `withUser`. Nothing is deleted beyond the pass-through signature; no current requirement is lost.
+**Resolution:**

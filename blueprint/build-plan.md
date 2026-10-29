@@ -39,6 +39,9 @@ Phase 1 - Tenancy and v3 core
 
 - [x] 1. **Staff auth** - phone + OTP sign-in with hashed, rate-limited OTPs, revocable sessions, and an AuthEvent row for every OTP request, failure, sign-in, sign-out, and revocation
 - [ ] 2. **Organisations, roles, and isolation** - create an organisation (creator becomes Owner), invite staff with roles, switch organisations, enforce organisation isolation with PostgreSQL row-level security set per request, and a per-organisation session lifetime set by its admin (default 30 days)
+  - [x] 2a. **Organisations and isolation** - restricted app database role that cannot bypass RLS, create an organisation (creator becomes Owner), list my organisations, organisation-scoped routes under `/organisations/:orgId` checked against membership (switching is the frontend picking an organisation), and PostgreSQL row-level security set per request
+  - [ ] 2b. **Staff invites and roles** - Owner or Admin invites staff by phone with a role (SMS notice; the invitee accepts or declines after signing in; 7-day expiry; revocable), changes roles, and removes staff; nobody invites or promotes to Owner
+  - [ ] 2c. **Per-organisation session lifetime** - Owner or Admin sets the organisation's session lifetime (default 30 days), enforced on requests to that organisation
 - [ ] 3. **Groups and members** - rotating and thrift groups with amount, frequency, reminder schedule, and start date for thrift; add members by name and E.164 phone or bulk CSV; join order; officers assigned to groups
 - [ ] 4. **Rotation setup and start** - draft rotation seeded from join order, reorderable until start; start locks positions, takes a first due date, and generates one cycle per slot (monthly days 29 to 31 fall back to month end), each snapshotting the amount due
 - [ ] 5. **Cash logging and allocation engine** - officers log cash as a Payment; the engine splits it across the member's groups (oldest past-due first, then existing cycles by due date, thrift takes any amount) and turns any excess into member credit
@@ -63,7 +66,7 @@ Phase 3 - Collections
 
 - [ ] 19. **Webhook ingress and auto-allocation** - signed webhooks routed to the organisation, raw event stored, duplicates dropped, transaction re-verified, Payment created and allocated, receipt sent, pending reminders cancelled
 - [ ] 20. **Unmatched queue** - payments to the collection account or blocked accounts, with officer assignment or refund marking and escalation after 3 days
-- [ ] 21. **Cash in hand** - per-officer cash-in-hand balance cleared by deposits, 48-hour flagging, and cash receipts to members
+- [ ] 21. **Cash in hand** - per-officer cash-in-hand balance cleared by deposits, 48-hour flagging, cash receipts to members, and member confirmation of each cash entry from their phone (unconfirmed entries are flagged)
 
 Phase 4 - Disbursements
 

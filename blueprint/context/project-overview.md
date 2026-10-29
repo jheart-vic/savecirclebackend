@@ -1,6 +1,6 @@
 # SaveCircle - Project Overview
 
-<!-- blueprint:source-hash 638b99705d9d8c034f1eae3962ba3af4fb3f70e27c88d93ee86f14519b4d3b9c -->
+<!-- blueprint:source-hash 17663d1abc3fa9a9fe3cf87979563f1be8f1e0eb7dfce3538504ac5380b6e49e -->
 
 > Backend API for SaveCircle: collections and payout software that
 > cooperatives and businesses run their ajo and thrift products on. Money moves
@@ -12,10 +12,10 @@
 
 ## Problem
 
-Savings groups and cooperative contribution products run on paper, cash, and
-spreadsheet reconciliation. SaveCircle gives each member an account number,
-matches payments automatically, shows one shared ledger, and pays out by
-transfer with approvals. Informal groups keep a free ledger-only tier.
+Savings groups and cooperatives run on paper, cash, and spreadsheets.
+SaveCircle gives each member an account number, matches payments
+automatically, shows one shared ledger, and pays out by transfer with
+approvals. Informal groups keep a free ledger-only tier.
 
 ## Users
 
@@ -40,7 +40,7 @@ several organisations and switches after sign-in.
   request. Cross-organisation access only for SaveCircle support, logged.
 - **Regulatory:** no SaveCircle custody or pooled accounts. Live gateway-mode
   money waits for a written legal opinion; the fallback if it needs a
-  licence is open (no bank-hosted mode while banks are out).
+  licence is open.
 - **Data protection:** BVN/NIN hashed with consent records (NDPA).
 - **Audit:** money tables append-only; every approval, hold, override, and
   reversal logged with person and reason. Money instructions are cancelled or
@@ -55,15 +55,15 @@ templates, data protection lead) runs in parallel.
 Phase 1 - Tenancy and v3 core
 
 1. **Staff auth** - phone + OTP, sessions, AuthEvent.
-2. **Organisations, roles, and isolation** - Owner, invites, RLS, per-org
-   session lifetime.
+2. **Organisations, roles, and isolation** - 2a orgs + RLS, 2b staff
+   invites, 2c per-org session lifetime.
 3. **Groups and members** - rotating and thrift, CSV upload.
 4. **Rotation setup and start** - order, first due date, cycles.
 5. **Cash logging and allocation engine** - split across groups, credit.
 6. **Reversals** - reasoned, re-allocation within 7 days.
 7. **Shared ledger and derived balances** (headline) - arrears, status,
    thrift and credit balances.
-8. **Who's next and cash payouts** - completion and restart.
+8. **Who's next and cash payouts**.
 9. **Thrift cycle rollover**. 10. **Inactive members and gap resolution**.
 11. **Rotation pause, close, and dissolve**.
 12. **Job queue and Notifier** (BullMQ, Termii). 13. **Reminders**.
@@ -112,7 +112,7 @@ adapter (deferred: banks out of scope), 34 white-label branding, 35 savings-hist
 ### Accounts and verification
 
 - Onboarding (client design, each step "save and continue later"):
-  **Organisation** (name, type, required contact email and phone, suggested
+  **Organisation** (name, type, required phone, optional email, suggested
   money mode) -> **KYB** -> **Payment Rails** (Paystack or Flutterwave, then key
   entry, no redirect; only Paystack live, Flutterwave "coming soon" until
   feature 31; the design's Bank API option is dropped; collection account
@@ -140,7 +140,8 @@ adapter (deferred: banks out of scope), 34 white-label branding, 35 savings-hist
 - Unmatched queue: payments to the collection account or blocked accounts;
   officer assigns or marks for refund; escalate after 3 days.
 - Cash: channel `cash`, tagged with the officer; cash-in-hand = logged -
-  deposited; flag after 48 hours; members get cash receipts.
+  deposited; flag after 48 hours; cash receipts; members confirm each entry
+  by phone, unconfirmed ones flagged (feature 21).
 - Escalations to a branch manager go to admins when there are no branches.
 - Nightly reconciliation of provider settlement vs ledger opens exceptions;
   nothing fixed silently.
@@ -270,7 +271,7 @@ append-only.
 
 **Organisation**
 
-- **Organisation** - `id`, `name`, `type` (enum), `contact_email`,
+- **Organisation** - `id`, `name`, `type` (enum), `contact_email?`,
   `contact_phone`, `money_mode` (gateway | ledger), `provider`,
   `kyb_status`, `onboarding_step`, `branding` (json), `policy` (json:
   `default_frequency`, `withdrawals_enabled`, `withdrawal_approval_required`,
