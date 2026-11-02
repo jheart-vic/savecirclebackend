@@ -6,6 +6,7 @@ import { authRouter } from "./auth/auth.routes.js";
 import { config } from "./config.js";
 import { errorHandler, notFoundHandler } from "./errors.js";
 import { organisationsRouter } from "./organisations/organisations.routes.js";
+import { invitesRouter } from "./staff/staff.routes.js";
 
 export const app = express();
 
@@ -22,6 +23,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/auth", authRouter);
 app.use("/organisations", organisationsRouter);
+app.use("/invites", invitesRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

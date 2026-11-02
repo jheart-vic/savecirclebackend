@@ -15,10 +15,10 @@
 **Suggested fix:** Needs a user decision (fix or accept). Smallest fix: take one fixed global advisory lock (for example `pg_advisory_xact_lock(<constant>)`) just before the cap count, so the count-and-insert for texted codes is serialised platform-wide; at pilot volume the extra wait is small. Alternatively accept a small overshoot and record why. No current requirement is lost.
 **Resolution:**
 
-### F-11 [P3] open - requireOrgMember opens its own tenant transaction instead of the service
+### F-12 [P3] open - "The one withOrg call with no membership check" comment is now false
 
-**File:** src/organisations/organisations.middleware.ts:23
-**Found:** 2026-10-29 by /audit independent (scope: current; lens: quality)
-**Why it matters:** The coding standards put transactions in the service layer, and the other two read paths (`listOrganisations`, `getOrganisation`) open `withUser`/`withOrg` inside the service. The middleware instead calls `withUser` itself and passes `tx` to `orgService.findActiveMembership` (src/organisations/organisations.service.ts:37), which is a one-line pass-through to the model that exists only to carry the transaction client. Two patterns for the same thing make it easier for later org-scoped code to pick the wrong one. No behaviour or isolation defect: the membership lookup is correctly scoped by the session user under RLS.
-**Suggested fix:** Make the service function `findActiveMembership(organisationId, userId)` open `withUser` itself and drop the `tx` parameter; the middleware then calls it without importing `withUser`. Nothing is deleted beyond the pass-through signature; no current requirement is lost.
+**File:** src/organisations/organisations.service.ts:19
+**Found:** 2026-11-02 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The coding standards (coding-standards.md:93) say `withOrg` runs only after `requireOrgMember`, and the comment at organisations.service.ts:19-20 records `createOrganisation` as "the one withOrg call with no membership check". This feature adds two more such calls (`acceptInvite` and `declineInvite`, src/staff/staff.service.ts:91-114). The spec's tenancy rules ask for that exception to be noted "beside the existing exception in `organisations.service.ts`"; it was noted only in staff.service.ts, so the comment that a future reviewer would use to enumerate unchecked `withOrg` calls now undercounts them. The `withOrg` docstring at src/tenancy.ts:16-17 states the same rule without exceptions. No behaviour or isolation defect: both new calls take the organisation id from an invite that RLS and the `phoneNumber` filter already bind to the caller, and re-check it in the conditional update.
+**Suggested fix:** Reword the organisations.service.ts:19-20 comment to name the exceptions (create organisation; accept/decline invite in staff.service.ts) instead of "the one", and optionally add "except the invite-holder paths in staff.service.ts" to the tenancy.ts docstring. Comment-only; no current requirement is lost.
 **Resolution:**

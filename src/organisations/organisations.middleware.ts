@@ -1,7 +1,7 @@
-import type { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { currentAuth } from "../auth/auth.middleware.js";
+import { AppError } from "../errors.js";
 import type { OrgRole } from "../generated/prisma/enums.js";
-import { withUser } from "../tenancy.js";
 import { parse } from "../validate.js";
 import * as orgService from "./organisations.service.js";
 import { orgParams } from "./organisations.validation.js";
@@ -20,7 +20,7 @@ declare global {
 export async function requireOrgMember(req: Request, res: Response, next: NextFunction) {
   const { orgId } = parse(orgParams, req.params, "params");
   const { user } = currentAuth(res);
-  const membership = await withUser(user.id, (tx) => orgService.findActiveMembership(orgId, user.id, tx));
+  const membership = await orgService.findActiveMembership(orgId, user.id);
   if (!membership) throw orgService.organisationNotFound();
   res.locals.org = { organisationId: orgId, membershipId: membership.id, role: membership.role };
   next();
@@ -30,4 +30,14 @@ export async function requireOrgMember(req: Request, res: Response, next: NextFu
 export function currentOrg(res: Response): OrgContext {
   if (!res.locals.org) throw new Error("currentOrg used on a route without requireOrgMember");
   return res.locals.org;
+}
+
+/** Lets the request through only when the caller's role in this organisation is one of `roles`. */
+export function requireOrgRole(...roles: OrgRole[]): RequestHandler {
+  return (_req, res, next) => {
+    if (!roles.includes(currentOrg(res).role)) {
+      throw new AppError(403, "forbidden", "Your role cannot do this");
+    }
+    next();
+  };
 }

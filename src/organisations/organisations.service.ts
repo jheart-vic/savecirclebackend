@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { Db } from "../db.js";
 import { AppError } from "../errors.js";
 import type { OrganisationType } from "../generated/prisma/enums.js";
 import { withOrg, withUser } from "../tenancy.js";
@@ -33,8 +32,8 @@ export async function listOrganisations(userId: string) {
   return memberships.map(({ role, organisation }) => ({ ...organisation, role }));
 }
 
-export function findActiveMembership(organisationId: string, userId: string, db: Db) {
-  return orgModel.findActiveMembership(organisationId, userId, db);
+export function findActiveMembership(organisationId: string, userId: string) {
+  return withUser(userId, (tx) => orgModel.findActiveMembership(organisationId, userId, tx));
 }
 
 /** One organisation the caller is already confirmed to belong to (see requireOrgMember). */

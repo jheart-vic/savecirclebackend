@@ -26,6 +26,7 @@ model User {
   sessions    Session[]
   authEvents  AuthEvent[]
   memberships OrgMembership[]
+  invitesSent StaffInvite[]
 
   @@map("users")
 }
@@ -101,6 +102,7 @@ enum OrgRole {
 
 enum MembershipStatus {
   active
+  removed
 }
 
 model Organisation {
@@ -113,7 +115,8 @@ model Organisation {
   moneyMode    MoneyMode        @default(ledger) @map("money_mode")
   createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  memberships OrgMembership[]
+  memberships  OrgMembership[]
+  staffInvites StaffInvite[]
 
   @@map("organisations")
 }
@@ -132,4 +135,25 @@ model OrgMembership {
   @@unique([organisationId, userId])
   @@index([userId])
   @@map("org_memberships")
+}
+
+// Pending = not accepted, declined, or revoked, and not yet expired. Status is derived, never stored.
+model StaffInvite {
+  id             String    @id @default(uuid()) @db.Uuid
+  organisationId String    @map("organisation_id") @db.Uuid
+  phoneNumber    String    @map("phone_number")
+  role           OrgRole
+  invitedBy      String    @map("invited_by") @db.Uuid
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(3)
+  declinedAt     DateTime? @map("declined_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+  inviter      User         @relation(fields: [invitedBy], references: [id])
+
+  @@index([organisationId, phoneNumber])
+  @@index([phoneNumber])
+  @@map("staff_invites")
 }

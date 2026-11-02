@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "workflow": {
-    "stepReview": "every",
+    "stepReview": "feature",
     "checkpointCommits": "disabled"
   },
   "git": {
