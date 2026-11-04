@@ -30,3 +30,19 @@
 **Why it matters:** The comment says `connect_timeout=30` "on both URLs gives a sleeping Neon compute time to wake". That holds for `DIRECT_URL`, which the Prisma CLI's schema engine reads (prisma.config.ts:13) and where `connect_timeout` is a supported seconds parameter with a short default. It does not hold for `DATABASE_URL`: the app connects through `@prisma/adapter-pg` (src/db.ts:10), which builds a node-postgres `Pool`. node-postgres 8.23.1 uses only `connectionTimeoutMillis` for its connect timer (node_modules/pg/lib/client.js:116), and the URL's `connect_timeout` is used only when building a libpq string for the native driver (node_modules/pg/lib/connection-parameters.js:150), which this project does not use. The parameter is not sent in the startup message, so it is harmless, and the app already has no client-side connect timeout by default. The only cost is a misleading comment that a future reader might rely on when tuning app connection timeouts.
 **Suggested fix:** Either drop `&connect_timeout=30` from the `DATABASE_URL` example and say the parameter is for the migration (`DIRECT_URL`) connection, or keep it and reword the comment to say it affects only the Prisma CLI. Comment/example-only; no current requirement is lost.
 **Resolution:**
+
+### F-14 [P2] open - An out-of-range startDate month or day returns 500 instead of 400 invalid_body
+
+**File:** src/groups/groups.validation.ts:18
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality, security)
+**Why it matters:** The `calendarDate` refine calls `new Date(...).toISOString()`. For a string that passes the `YYYY-MM-DD` regex but is not a parseable date (month `00` or `13`, day `32` and up), `new Date` is an Invalid Date and `toISOString()` throws `RangeError: Invalid time value`. zod does not catch exceptions thrown inside a refine, so `parse()` in src/validate.ts rethrows the RangeError and the central handler answers 500 `internal_error` and logs a stack trace. Confirmed against the built schema: `createGroupBody.safeParse({ ..., type: "fixed", startDate: "2027-13-01" })` throws RangeError, while `"2027-02-30"` correctly fails with `success: false`. The spec and standards require invalid bodies to be 400 `invalid_body`. No data or isolation effect: nothing is written and the response is generic, hence P2.
+**Suggested fix:** Make the refine total: build the Date once, return false when `Number.isNaN(date.getTime())`, and only then compare `date.toISOString()` with the input. No current requirement is lost.
+**Resolution:**
+
+### F-15 [P3] open - Service member-role check duplicates the route guard and is unreachable
+
+**File:** src/groups/groups.service.ts:124
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality)
+**Why it matters:** Both member endpoints are already behind `createsGroups = requireOrgRole("owner", "admin", "field_officer")` (src/groups/groups.routes.ts:9, 18-19), so `MANAGES_MEMBERS` (groups.service.ts:13) and the `forbidden()` branch in `insertMembers` can never fire through HTTP. Two copies of the same role list can drift; the guard name `createsGroups` on the member routes also hides that it is the member-management rule. A side effect of the route-level check is that a treasurer or branch manager posting to an unknown group id gets 403 rather than the spec's 404 for a group that does not exist; no existence is leaked because the 403 is role-only.
+**Suggested fix:** Keep one source of truth: either drop `MANAGES_MEMBERS`/`forbidden` from the service (the route guard already enforces the spec table), or keep the service check and remove the route guard from the two member routes if 404-before-403 for unknown ids is wanted. Optionally rename the route guard to something like `managesGroups`. No current requirement is lost.
+**Resolution:**

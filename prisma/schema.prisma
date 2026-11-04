@@ -23,10 +23,12 @@ model User {
   phoneNumber String   @unique @map("phone_number")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  sessions    Session[]
-  authEvents  AuthEvent[]
-  memberships OrgMembership[]
-  invitesSent StaffInvite[]
+  sessions      Session[]
+  authEvents    AuthEvent[]
+  memberships   OrgMembership[]
+  invitesSent   StaffInvite[]
+  groupsCreated Group[]
+  officerOf     GroupOfficer[]
 
   @@map("users")
 }
@@ -117,8 +119,11 @@ model Organisation {
   policy       Json             @default("{}")
   createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  memberships  OrgMembership[]
-  staffInvites StaffInvite[]
+  memberships   OrgMembership[]
+  staffInvites  StaffInvite[]
+  groups        Group[]
+  members       Member[]
+  groupOfficers GroupOfficer[]
 
   @@map("organisations")
 }
@@ -158,4 +163,88 @@ model StaffInvite {
   @@index([organisationId, phoneNumber])
   @@index([phoneNumber])
   @@map("staff_invites")
+}
+
+// `fixed` is a thrift group.
+enum GroupType {
+  rotating
+  fixed
+}
+
+enum Frequency {
+  daily
+  weekly
+  monthly
+}
+
+enum GroupStatus {
+  active
+  paused
+  closed
+}
+
+enum MemberStatus {
+  active
+  inactive
+}
+
+model Group {
+  id                 String      @id @default(uuid()) @db.Uuid
+  organisationId     String      @map("organisation_id") @db.Uuid
+  name               String
+  type               GroupType
+  // Kobo per member per cycle.
+  contributionAmount Int         @map("contribution_amount")
+  frequency          Frequency
+  // Thrift only: the first cycle's due date.
+  startDate          DateTime?   @map("start_date") @db.Date
+  status             GroupStatus @default(active)
+  // Days relative to each due date, for example [-2, 0, 1].
+  reminderOffsets    Int[]       @map("reminder_offsets")
+  createdBy          String      @map("created_by") @db.Uuid
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation Organisation   @relation(fields: [organisationId], references: [id])
+  creator      User           @relation(fields: [createdBy], references: [id])
+  members      Member[]
+  officers     GroupOfficer[]
+
+  @@index([organisationId, createdAt])
+  @@map("groups")
+}
+
+model Member {
+  id             String       @id @default(uuid()) @db.Uuid
+  organisationId String       @map("organisation_id") @db.Uuid
+  groupId        String       @map("group_id") @db.Uuid
+  name           String
+  phoneNumber    String       @map("phone_number")
+  joinOrder      Int          @map("join_order")
+  status         MemberStatus @default(active)
+  inactiveFrom   DateTime?    @map("inactive_from") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+  group        Group        @relation(fields: [groupId], references: [id])
+
+  @@unique([groupId, phoneNumber])
+  @@unique([groupId, joinOrder])
+  @@index([organisationId, phoneNumber])
+  @@map("members")
+}
+
+model GroupOfficer {
+  id             String   @id @default(uuid()) @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  groupId        String   @map("group_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+  group        Group        @relation(fields: [groupId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@map("group_officers")
 }

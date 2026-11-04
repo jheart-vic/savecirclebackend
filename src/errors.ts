@@ -5,6 +5,8 @@ export class AppError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    // Extra fields sent beside code and message, for example per-row CSV errors.
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -21,7 +23,7 @@ const BODY_ERROR_MESSAGES: Record<string, string> = {
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof AppError) {
-    res.status(err.status).json({ error: { code: err.code, message: err.message } });
+    res.status(err.status).json({ error: { code: err.code, message: err.message, ...err.details } });
     return;
   }
 
