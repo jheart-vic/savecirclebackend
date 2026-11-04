@@ -41,10 +41,19 @@ export function listActiveMemberships(userId: string, db: Db) {
 export function findActiveMembership(organisationId: string, userId: string, db: Db) {
   return db.orgMembership.findFirst({
     where: { organisationId, userId, status: "active" },
-    select: { id: true, role: true },
+    select: { id: true, role: true, organisation: { select: { policy: true } } },
   });
 }
 
 export function findOrganisation(id: string, db: Db) {
   return db.organisation.findUnique({ where: { id }, select: organisationFields });
+}
+
+export function findPolicy(id: string, db: Db) {
+  return db.organisation.findUnique({ where: { id }, select: { policy: true } });
+}
+
+// Merges one key into the policy object, so other keys written at the same time survive.
+export function setSessionTtlDays(id: string, days: number, db: Db) {
+  return db.$executeRaw`UPDATE organisations SET policy = policy || jsonb_build_object('session_ttl_days', ${days}::int) WHERE id = ${id}::uuid`;
 }

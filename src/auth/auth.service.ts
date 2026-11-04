@@ -145,6 +145,7 @@ export async function verifyCode({ phoneNumber, code, ip }: VerifyCodeInput) {
 
 export type AuthContext = {
   sessionId: string;
+  sessionCreatedAt: Date;
   expiresAt: Date;
   user: { id: string; name: string; phoneNumber: string };
 };
@@ -158,7 +159,12 @@ export async function authenticate(token: string | undefined): Promise<AuthConte
   if (!session) throw unauthenticated();
 
   const { id, name, phoneNumber } = session.user;
-  return { sessionId: session.id, expiresAt: session.expiresAt, user: { id, name, phoneNumber } };
+  return {
+    sessionId: session.id,
+    sessionCreatedAt: session.createdAt,
+    expiresAt: session.expiresAt,
+    user: { id, name, phoneNumber },
+  };
 }
 
 export async function signOut(auth: AuthContext, ip: string): Promise<void> {

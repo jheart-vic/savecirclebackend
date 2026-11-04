@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../auth/auth.middleware.js";
 import { staffRouter } from "../staff/staff.routes.js";
 import * as orgController from "./organisations.controller.js";
-import { requireOrgMember } from "./organisations.middleware.js";
+import { requireOrgMember, requireOrgRole } from "./organisations.middleware.js";
 
 export const organisationsRouter = Router();
 
@@ -14,4 +14,6 @@ organisationsRouter.get("/", requireAuth, orgController.list);
 organisationsRouter.use("/:orgId", requireAuth, requireOrgMember, orgScopedRouter);
 
 orgScopedRouter.get("/", orgController.show);
+orgScopedRouter.get("/policy", requireOrgRole("owner", "admin"), orgController.showPolicy);
+orgScopedRouter.patch("/policy", requireOrgRole("owner", "admin"), orgController.updatePolicy);
 orgScopedRouter.use(staffRouter);

@@ -113,6 +113,8 @@ model Organisation {
   contactEmail String?          @map("contact_email")
   contactPhone String           @map("contact_phone")
   moneyMode    MoneyMode        @default(ledger) @map("money_mode")
+  // Organisation settings with snake_case keys, for example session_ttl_days.
+  policy       Json             @default("{}")
   createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
   memberships  OrgMembership[]

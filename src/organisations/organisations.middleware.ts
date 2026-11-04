@@ -19,9 +19,12 @@ declare global {
 /** Lets a request into `/organisations/:orgId` only for an active member; everyone else gets 404. */
 export async function requireOrgMember(req: Request, res: Response, next: NextFunction) {
   const { orgId } = parse(orgParams, req.params, "params");
-  const { user } = currentAuth(res);
+  const { user, sessionCreatedAt } = currentAuth(res);
   const membership = await orgService.findActiveMembership(orgId, user.id);
   if (!membership) throw orgService.organisationNotFound();
+  if (orgService.isSessionExpired(membership.organisation.policy, sessionCreatedAt)) {
+    throw new AppError(401, "session_expired", "Sign in again to continue in this organisation");
+  }
   res.locals.org = { organisationId: orgId, membershipId: membership.id, role: membership.role };
   next();
 }
