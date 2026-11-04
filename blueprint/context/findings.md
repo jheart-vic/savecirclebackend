@@ -31,13 +31,13 @@
 **Suggested fix:** Either drop `&connect_timeout=30` from the `DATABASE_URL` example and say the parameter is for the migration (`DIRECT_URL`) connection, or keep it and reword the comment to say it affects only the Prisma CLI. Comment/example-only; no current requirement is lost.
 **Resolution:**
 
-### F-14 [P2] open - An out-of-range startDate month or day returns 500 instead of 400 invalid_body
+### F-14 [P2] fixed - An out-of-range startDate month or day returns 500 instead of 400 invalid_body
 
 **File:** src/groups/groups.validation.ts:18
 **Found:** 2026-11-04 by /audit independent (scope: current; lens: quality, security)
 **Why it matters:** The `calendarDate` refine calls `new Date(...).toISOString()`. For a string that passes the `YYYY-MM-DD` regex but is not a parseable date (month `00` or `13`, day `32` and up), `new Date` is an Invalid Date and `toISOString()` throws `RangeError: Invalid time value`. zod does not catch exceptions thrown inside a refine, so `parse()` in src/validate.ts rethrows the RangeError and the central handler answers 500 `internal_error` and logs a stack trace. Confirmed against the built schema: `createGroupBody.safeParse({ ..., type: "fixed", startDate: "2027-13-01" })` throws RangeError, while `"2027-02-30"` correctly fails with `success: false`. The spec and standards require invalid bodies to be 400 `invalid_body`. No data or isolation effect: nothing is written and the response is generic, hence P2.
 **Suggested fix:** Make the refine total: build the Date once, return false when `Number.isNaN(date.getTime())`, and only then compare `date.toISOString()` with the input. No current requirement is lost.
-**Resolution:**
+**Resolution:** Fixed 2026-11-05 by fix/out-of-range-startdate-returns-500: the refine builds the Date once and returns false when `getTime()` is NaN before calling `toISOString()`. Checked through the API against Neon: `2027-13-01`, `2027-00-10`, `2027-01-32`, `2027-02-30`, `2027-02-29` give 400 `invalid_body`; a real future date and `2028-02-29` give 201. Awaiting an `/audit` re-review to close.
 
 ### F-15 [P3] open - Service member-role check duplicates the route guard and is unreachable
 

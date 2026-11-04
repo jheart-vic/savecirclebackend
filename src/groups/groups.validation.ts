@@ -15,7 +15,11 @@ export function todayInLagos(now = new Date()): string {
 const calendarDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((value) => new Date(`${value}T00:00:00Z`).toISOString().startsWith(value), "not a real date");
+  .refine((value) => {
+    // Month 13 or day 32 gives an invalid Date, whose toISOString() would throw.
+    const date = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+  }, "not a real date");
 
 export const createGroupBody = z
   .object({
