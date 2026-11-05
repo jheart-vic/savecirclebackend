@@ -23,12 +23,14 @@ model User {
   phoneNumber String   @unique @map("phone_number")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  sessions      Session[]
-  authEvents    AuthEvent[]
-  memberships   OrgMembership[]
-  invitesSent   StaffInvite[]
-  groupsCreated Group[]
-  officerOf     GroupOfficer[]
+  sessions            Session[]
+  authEvents          AuthEvent[]
+  memberships         OrgMembership[]
+  invitesSent         StaffInvite[]
+  groupsCreated       Group[]
+  officerOf           GroupOfficer[]
+  paymentsLogged      Payment[]
+  contributionsLogged Contribution[]
 
   @@map("users")
 }
@@ -127,6 +129,9 @@ model Organisation {
   rotations     Rotation[]
   rotationSlots RotationSlot[]
   cycles        Cycle[]
+  payments      Payment[]
+  contributions Contribution[]
+  memberCredits MemberCredit[]
 
   @@map("organisations")
 }
@@ -229,9 +234,12 @@ model Member {
   inactiveFrom   DateTime?    @map("inactive_from") @db.Timestamptz(3)
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organisation Organisation   @relation(fields: [organisationId], references: [id])
-  group        Group          @relation(fields: [groupId], references: [id])
-  slots        RotationSlot[]
+  organisation  Organisation   @relation(fields: [organisationId], references: [id])
+  group         Group          @relation(fields: [groupId], references: [id])
+  slots         RotationSlot[]
+  payments      Payment[]
+  contributions Contribution[]
+  credits       MemberCredit[]
 
   @@unique([groupId, phoneNumber])
   @@unique([groupId, joinOrder])
@@ -325,12 +333,99 @@ model Cycle {
   cancelledAt    DateTime? @map("cancelled_at") @db.Timestamptz(3)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organisation Organisation  @relation(fields: [organisationId], references: [id])
-  group        Group         @relation(fields: [groupId], references: [id])
-  rotation     Rotation?     @relation(fields: [rotationId], references: [id])
-  payoutSlot   RotationSlot? @relation(fields: [payoutSlotId], references: [id])
+  organisation  Organisation   @relation(fields: [organisationId], references: [id])
+  group         Group          @relation(fields: [groupId], references: [id])
+  rotation      Rotation?      @relation(fields: [rotationId], references: [id])
+  payoutSlot    RotationSlot?  @relation(fields: [payoutSlotId], references: [id])
+  contributions Contribution[]
+  credits       MemberCredit[]
 
   @@unique([rotationId, cycleNumber])
   @@index([groupId, dueDate])
   @@map("cycles")
+}
+
+enum PaymentChannel {
+  transfer
+  cash
+}
+
+enum MatchStatus {
+  matched
+  unmatched
+}
+
+// Money tables are append-only: RLS allows SELECT and INSERT only.
+model Payment {
+  id               String         @id @default(uuid()) @db.Uuid
+  organisationId   String         @map("organisation_id") @db.Uuid
+  // Foreign key added with virtual accounts (feature 17).
+  virtualAccountId String?        @map("virtual_account_id") @db.Uuid
+  memberId         String?        @map("member_id") @db.Uuid
+  channel          PaymentChannel
+  // Kobo.
+  amount           Int
+  // Null for cash.
+  providerRef      String?        @unique @map("provider_ref")
+  senderName       String?        @map("sender_name")
+  narration        String?
+  receivedAt       DateTime       @map("received_at") @db.Timestamptz(3)
+  loggedBy         String?        @map("logged_by") @db.Uuid
+  matchStatus      MatchStatus    @map("match_status")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation  Organisation   @relation(fields: [organisationId], references: [id])
+  member        Member?        @relation(fields: [memberId], references: [id])
+  logger        User?          @relation(fields: [loggedBy], references: [id])
+  contributions Contribution[]
+  credits       MemberCredit[]
+
+  @@index([organisationId, receivedAt])
+  @@map("payments")
+}
+
+model Contribution {
+  id             String   @id @default(uuid()) @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  cycleId        String   @map("cycle_id") @db.Uuid
+  memberId       String   @map("member_id") @db.Uuid
+  // Kobo; negative only for reversals (feature 6).
+  amount         Int
+  paidAt         DateTime @map("paid_at") @db.Timestamptz(3)
+  loggedBy       String?  @map("logged_by") @db.Uuid
+  paymentId      String   @map("payment_id") @db.Uuid
+  reversesId     String?  @map("reverses_id") @db.Uuid
+  reason         String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation Organisation   @relation(fields: [organisationId], references: [id])
+  cycle        Cycle          @relation(fields: [cycleId], references: [id])
+  member       Member         @relation(fields: [memberId], references: [id])
+  logger       User?          @relation(fields: [loggedBy], references: [id])
+  payment      Payment        @relation(fields: [paymentId], references: [id])
+  reverses     Contribution?  @relation("ContributionReversal", fields: [reversesId], references: [id])
+  reversedBy   Contribution[] @relation("ContributionReversal")
+
+  @@index([cycleId, memberId])
+  @@index([paymentId])
+  @@map("contributions")
+}
+
+model MemberCredit {
+  id               String   @id @default(uuid()) @db.Uuid
+  organisationId   String   @map("organisation_id") @db.Uuid
+  memberId         String   @map("member_id") @db.Uuid
+  // Kobo; positive accrues, negative spends (later features).
+  amount           Int
+  sourcePaymentId  String?  @map("source_payment_id") @db.Uuid
+  appliedToCycleId String?  @map("applied_to_cycle_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+  member         Member       @relation(fields: [memberId], references: [id])
+  sourcePayment  Payment?     @relation(fields: [sourcePaymentId], references: [id])
+  appliedToCycle Cycle?       @relation(fields: [appliedToCycleId], references: [id])
+
+  @@index([memberId])
+  @@map("member_credits")
 }

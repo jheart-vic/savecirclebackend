@@ -62,3 +62,27 @@
 **Why it matters:** After `moveSlotsAside`, the loop awaits `setSlotPosition` once per member, so a reorder of n members makes n sequential round trips inside an interactive transaction capped at 10 s (src/db.ts:12) while holding the group row lock that member adds and start wait on. With the app close to Neon this is milliseconds per call, but src/db.ts notes slow links to Neon have already exceeded Prisma's defaults; at ~100 ms per round trip a ~90-member group would time out and roll back. Separately, `reorderBody` caps `memberIds` at 500 (rotations.validation.ts:4) while groups have no member cap (imports are 500 per file), so a group past 500 members can never be reordered and gets 400 `invalid_body`. Not measured; no runtime latency evidence.
 **Suggested fix:** Rewrite positions in one statement, for example `UPDATE rotation_slots s SET position = v.pos FROM unnest(${ids}::uuid[]) WITH ORDINALITY AS v(id, pos) WHERE s.id = v.id AND s.rotation_id = ${rotationId}::uuid`, after the existing move-aside (the unique index is not deferrable, so keep the negative pass). Align the 500 cap with any group-size limit the plan sets, or document it. No current requirement is lost.
 **Resolution:**
+
+### F-19 [P3] open - Candidate shortfall cast to int can overflow once a cycle takes deposits beyond its amount due
+
+**File:** src/payments/payments.model.ts:32
+**Found:** 2026-11-05 by /audit independent (scope: current; lens: quality, performance)
+**Why it matters:** `shortfall` is `(c.amount_due - COALESCE(SUM(ct.amount), 0))::int`. `SUM` over int is bigint and the result is cast back to int with no floor. Rotation cycles are bounded by the per-person advisory lock (a cycle never gets more than its amount due), but the thrift target takes "any amount" (allocation.ts:49-52) and is also selected as a candidate by the same query (`c.rotation_id IS NULL`). Once feature 9 creates thrift cycles, cumulative deposits above about 2.15 billion kobo on one thrift cycle make `amount_due - sum` fall below the int range, the cast raises "integer out of range", and every later cash log for that person fails with a 500. Not reachable today because no thrift cycles exist. Separately, the query returns every fully paid historical cycle and the engine discards them in JS, so the row count grows with group age.
+**Suggested fix:** Compute `GREATEST(c.amount_due - COALESCE(SUM(...), 0), 0)::int` (always within int because it is at most `amount_due`) and filter to shortfalls greater than 0 in SQL (wrap in a subquery or repeat the expression in `WHERE`). No current requirement is lost.
+**Resolution:**
+
+### F-20 [P3] open - Some money-table foreign keys use ON DELETE SET NULL, which lets a referential action rewrite append-only rows
+
+**File:** prisma/migrations/20261105112753_payments/migration.sql:75
+**Found:** 2026-11-05 by /audit independent (scope: current; lens: security, quality)
+**Why it matters:** The RLS design makes `payments`, `contributions`, and `member_credits` append-only for the app role (no UPDATE/DELETE policy). But `payments.member_id` (line 75), `payments.logged_by` (78), `contributions.logged_by` (90), `contributions.reverses_id` (96), `member_credits.source_payment_id` (105), and `member_credits.applied_to_cycle_id` (108) are `ON DELETE SET NULL`, and every FK is `ON UPDATE CASCADE`. Referential actions run regardless of the money tables' RLS, so deleting a referenced user or member (for example by the owner role or a later feature that allows deletes; `users` has no RLS and the app role holds DELETE on it) would silently null who logged the cash or which member a payment belongs to, an UPDATE to money rows that the append-only rule forbids. Not reachable through the API today: members have no DELETE policy and users are held by RESTRICT FKs from sessions and memberships. The other money FKs in the same migration already use RESTRICT, so the set is inconsistent.
+**Suggested fix:** In this unshipped migration (or a follow-up), make the money-table FKs `ON DELETE RESTRICT ON UPDATE RESTRICT` (Prisma: `onDelete: Restrict, onUpdate: Restrict` on those relations). No current requirement is lost.
+**Resolution:**
+
+### F-21 [P3] open - payments.amount > 0 from the spec is enforced only by request validation
+
+**File:** prisma/migrations/20261105112753_payments/migration.sql:14
+**Found:** 2026-11-05 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The spec's Data section states `Payment.amount int > 0`. The cash endpoint enforces 1 to 2 000 000 000 in `logCashBody` (payments.validation.ts:9), but the table has no CHECK constraint, so the planned webhook and unmatched paths (features 17-20) can insert a zero or negative payment if their own validation slips. Contributions and credits legitimately go negative (reversals, spends), but payments never should.
+**Suggested fix:** Add `ALTER TABLE "payments" ADD CONSTRAINT "payments_amount_positive" CHECK (amount > 0);` to the migration. No current requirement is lost.
+**Resolution:**

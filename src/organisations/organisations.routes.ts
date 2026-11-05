@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../auth/auth.middleware.js";
 import { groupsRouter } from "../groups/groups.routes.js";
+import { paymentsRouter } from "../payments/payments.routes.js";
 import { rotationsRouter } from "../rotations/rotations.routes.js";
 import { staffRouter } from "../staff/staff.routes.js";
 import * as orgController from "./organisations.controller.js";
@@ -21,3 +22,4 @@ orgScopedRouter.patch("/policy", requireOrgRole("owner", "admin"), orgController
 orgScopedRouter.use(staffRouter);
 orgScopedRouter.use(groupsRouter);
 orgScopedRouter.use(rotationsRouter);
+orgScopedRouter.use(paymentsRouter);
