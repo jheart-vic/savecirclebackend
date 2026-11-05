@@ -12,7 +12,7 @@ export function todayInLagos(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(now);
 }
 
-const calendarDate = z
+export const calendarDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((value) => {

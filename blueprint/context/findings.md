@@ -31,18 +31,34 @@
 **Suggested fix:** Either drop `&connect_timeout=30` from the `DATABASE_URL` example and say the parameter is for the migration (`DIRECT_URL`) connection, or keep it and reword the comment to say it affects only the Prisma CLI. Comment/example-only; no current requirement is lost.
 **Resolution:**
 
-### F-14 [P2] fixed - An out-of-range startDate month or day returns 500 instead of 400 invalid_body
-
-**File:** src/groups/groups.validation.ts:18
-**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality, security)
-**Why it matters:** The `calendarDate` refine calls `new Date(...).toISOString()`. For a string that passes the `YYYY-MM-DD` regex but is not a parseable date (month `00` or `13`, day `32` and up), `new Date` is an Invalid Date and `toISOString()` throws `RangeError: Invalid time value`. zod does not catch exceptions thrown inside a refine, so `parse()` in src/validate.ts rethrows the RangeError and the central handler answers 500 `internal_error` and logs a stack trace. Confirmed against the built schema: `createGroupBody.safeParse({ ..., type: "fixed", startDate: "2027-13-01" })` throws RangeError, while `"2027-02-30"` correctly fails with `success: false`. The spec and standards require invalid bodies to be 400 `invalid_body`. No data or isolation effect: nothing is written and the response is generic, hence P2.
-**Suggested fix:** Make the refine total: build the Date once, return false when `Number.isNaN(date.getTime())`, and only then compare `date.toISOString()` with the input. No current requirement is lost.
-**Resolution:** Fixed 2026-11-05 by fix/out-of-range-startdate-returns-500: the refine builds the Date once and returns false when `getTime()` is NaN before calling `toISOString()`. Checked through the API against Neon: `2027-13-01`, `2027-00-10`, `2027-01-32`, `2027-02-30`, `2027-02-29` give 400 `invalid_body`; a real future date and `2028-02-29` give 201. Awaiting an `/audit` re-review to close.
-
 ### F-15 [P3] open - Service member-role check duplicates the route guard and is unreachable
 
-**File:** src/groups/groups.service.ts:124
+**File:** src/groups/groups.service.ts:135
 **Found:** 2026-11-04 by /audit independent (scope: current; lens: quality)
 **Why it matters:** Both member endpoints are already behind `createsGroups = requireOrgRole("owner", "admin", "field_officer")` (src/groups/groups.routes.ts:9, 18-19), so `MANAGES_MEMBERS` (groups.service.ts:13) and the `forbidden()` branch in `insertMembers` can never fire through HTTP. Two copies of the same role list can drift; the guard name `createsGroups` on the member routes also hides that it is the member-management rule. A side effect of the route-level check is that a treasurer or branch manager posting to an unknown group id gets 403 rather than the spec's 404 for a group that does not exist; no existence is leaked because the 403 is role-only.
 **Suggested fix:** Keep one source of truth: either drop `MANAGES_MEMBERS`/`forbidden` from the service (the route guard already enforces the spec table), or keep the service check and remove the route guard from the two member routes if 404-before-403 for unknown ids is wanted. Optionally rename the route guard to something like `managesGroups`. No current requirement is lost.
+**Resolution:** Re-examined 2026-11-05 by /audit independent (feature 4 review, target 59f49a5). The evidence changed in part: the check moved into exported `assertManagesMembers` (groups.service.ts:30-32), which the rotation routes now rely on with no route guard (src/rotations/rotations.routes.ts:7-9, called at src/rotations/rotations.service.ts:47), so `MANAGES_MEMBERS` is now live and reachable and must stay. Dropping it from the service is no longer a valid fix. The call inside `insertMembers` (groups.service.ts:135) is still unreachable behind the member routes' `createsGroups` guard, so the duplicate role list and the 403-before-404 ordering on the member routes remain, and member routes and rotation routes now order 403/404 differently for the same role rule. Status stays open at P3; the remaining fix is to remove `createsGroups` from the two member routes so both paths use `assertManagesMembers` after `visibleGroup`, or accept the difference.
+
+### F-16 [P3] open - A far-future firstDueDate produces malformed cycle due dates
+
+**File:** src/rotations/rotations.validation.ts:6
+**Found:** 2026-11-05 by /audit independent (scope: current; lens: quality, security)
+**Why it matters:** `startBody` only bounds `firstDueDate` from below (`>= todayInLagos()`). `addPeriods` formats with `toISOString().slice(0, 10)` (src/rotations/due-dates.ts:6), which is only `YYYY-MM-DD` for years 0000-9999. Against the built code, `dueDates("9999-12-31", "monthly", 2)` returns `["9999-12-31", "+010000-01"]`; the service then builds `new Date("+010000-01T00:00:00Z")`, which is 10000-01-01 rather than the intended 10000-01-31, and the response's `toDate` would echo the same malformed string (or the driver may reject it as a 500). Any rotation whose last cycle crosses year 9999 is affected. Only reachable by an Owner/Admin/assigned officer typing an absurd date, nothing crosses tenants, hence P3.
+**Suggested fix:** Add an upper bound to `firstDueDate` in `startBody` (for example no later than today plus a few years, or a year below 9000) so every generated date stays within four-digit years. No current requirement is lost.
+**Resolution:**
+
+### F-17 [P3] open - lockedDraft runs the group visibility check twice
+
+**File:** src/rotations/rotations.service.ts:46
+**Found:** 2026-11-05 by /audit independent (scope: current; lens: quality, performance)
+**Why it matters:** `lockedDraft` calls `visibleGroup` (findGroup, plus findOfficer for a field officer) before taking the lock, then `currentRotation` calls `visibleGroup` again after the lock (rotations.service.ts:36). Reorder and start therefore make one or two redundant queries inside the locked transaction. The first call is needed so a hidden or unknown group returns 404 before the 403 role check and before locking; the second only re-reads `type`, `frequency`, and `contributionAmount`. No behaviour defect: the second read after the lock is what makes the amount snapshot current. The service also imports `assertManagesMembers`/`visibleGroup` from groups.service by name, while coding-standards.md:39 asks for namespace imports of layers.
+**Suggested fix:** Have `currentRotation` accept an already-loaded group (or split out a `rotationOf(group, tx)` helper), and in `lockedDraft` re-read only the group fields after the lock with `groupModel.findGroup`; import the groups service as `import * as groupService`. No current requirement is lost.
+**Resolution:**
+
+### F-18 [P3] unverified - Reorder issues one UPDATE per slot inside the 10 s transaction and cannot exceed 500 members
+
+**File:** src/rotations/rotations.service.ts:70
+**Found:** 2026-11-05 by /audit independent (scope: current; lens: performance)
+**Why it matters:** After `moveSlotsAside`, the loop awaits `setSlotPosition` once per member, so a reorder of n members makes n sequential round trips inside an interactive transaction capped at 10 s (src/db.ts:12) while holding the group row lock that member adds and start wait on. With the app close to Neon this is milliseconds per call, but src/db.ts notes slow links to Neon have already exceeded Prisma's defaults; at ~100 ms per round trip a ~90-member group would time out and roll back. Separately, `reorderBody` caps `memberIds` at 500 (rotations.validation.ts:4) while groups have no member cap (imports are 500 per file), so a group past 500 members can never be reordered and gets 400 `invalid_body`. Not measured; no runtime latency evidence.
+**Suggested fix:** Rewrite positions in one statement, for example `UPDATE rotation_slots s SET position = v.pos FROM unnest(${ids}::uuid[]) WITH ORDINALITY AS v(id, pos) WHERE s.id = v.id AND s.rotation_id = ${rotationId}::uuid`, after the existing move-aside (the unique index is not deferrable, so keep the negative pass). Align the 500 cap with any group-size limit the plan sets, or document it. No current requirement is lost.
 **Resolution:**

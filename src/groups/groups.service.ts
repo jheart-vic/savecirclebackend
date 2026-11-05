@@ -5,6 +5,7 @@ import type { Frequency, GroupType, OrgRole } from "../generated/prisma/enums.js
 import { Prisma } from "../generated/prisma/client.js";
 import { withOrg } from "../tenancy.js";
 import { parseCsv } from "./csv.js";
+import * as rotationModel from "../rotations/rotations.model.js";
 import * as groupModel from "./groups.model.js";
 import { DEFAULT_REMINDER_OFFSETS, MAX_IMPORT_ROWS, memberName } from "./groups.validation.js";
 
@@ -25,8 +26,13 @@ const toGroup = ({ startDate, ...group }: GroupRow) => ({
   startDate: startDate ? startDate.toISOString().slice(0, 10) : null,
 });
 
+/** Throws 403 unless the actor's role may add members and run the group's rotation. */
+export function assertManagesMembers(actor: Actor) {
+  if (!MANAGES_MEMBERS.includes(actor.role)) throw forbidden();
+}
+
 /** The group if the actor may see it; unknown and hidden groups look the same. */
-async function visibleGroup(actor: Actor, groupId: string, tx: Db) {
+export async function visibleGroup(actor: Actor, groupId: string, tx: Db) {
   const group = await groupModel.findGroup(actor.organisationId, groupId, tx);
   if (!group) throw groupNotFound();
   if (!SEES_ALL_GROUPS.includes(actor.role) && !(await groupModel.findOfficer(groupId, actor.userId, tx))) {
@@ -61,6 +67,10 @@ export async function createGroup(actor: Actor, input: CreateGroupInput) {
       tx,
     );
     if (actor.role === "field_officer") await groupModel.addOfficer({ organisationId, groupId: group.id, userId }, tx);
+    // A rotating group starts with a draft rotation that members join as they are added.
+    if (group.type === "rotating") {
+      await rotationModel.createRotation({ organisationId, groupId: group.id, rotationNumber: 1 }, tx);
+    }
     return group;
   });
   return toGroup(group);
@@ -119,9 +129,10 @@ export async function unassignOfficer(actor: Actor, groupId: string, officerUser
 type NewMember = { name: string; phoneNumber: string };
 
 // Locks the group, rejects phones already in it, and numbers the new members after the existing ones.
+// In a rotating group with a draft rotation, each new member also takes the next slot.
 async function insertMembers(actor: Actor, groupId: string, newMembers: NewMember[], tx: Db) {
-  await visibleGroup(actor, groupId, tx);
-  if (!MANAGES_MEMBERS.includes(actor.role)) throw forbidden();
+  const group = await visibleGroup(actor, groupId, tx);
+  assertManagesMembers(actor);
   await groupModel.lockGroup(groupId, tx);
   const existing = await groupModel.findMembersByPhone(groupId, newMembers.map((m) => m.phoneNumber), tx);
   const first = await groupModel.nextJoinOrder(groupId, tx);
@@ -131,7 +142,24 @@ async function insertMembers(actor: Actor, groupId: string, newMembers: NewMembe
     ...member,
     joinOrder: first + i,
   }));
-  return { existing: new Set(existing.map((m) => m.phoneNumber)), insert: () => groupModel.createMembers(rows, tx) };
+  const insert = async () => {
+    const created = (await groupModel.createMembers(rows, tx)).sort((a, b) => a.joinOrder - b.joinOrder);
+    const draft = group.type === "rotating" ? await rotationModel.findDraftRotation(groupId, tx) : null;
+    if (draft) {
+      const position = await rotationModel.nextPosition(draft.id, tx);
+      await rotationModel.createSlots(
+        created.map((member, i) => ({
+          organisationId: actor.organisationId,
+          rotationId: draft.id,
+          memberId: member.id,
+          position: position + i,
+        })),
+        tx,
+      );
+    }
+    return created;
+  };
+  return { existing: new Set(existing.map((m) => m.phoneNumber)), insert };
 }
 
 export async function addMember(actor: Actor, groupId: string, member: NewMember) {
@@ -190,7 +218,6 @@ export async function importMembers(actor: Actor, groupId: string, text: string)
       .filter((row) => existing.has(row.member.phoneNumber))
       .map(({ line }) => ({ line, message: "This phone number is already in the group" }));
     if (clashes.length > 0) throw invalidCsv("Some rows are invalid; no members were added", clashes);
-    const created = await insert();
-    return created.sort((a, b) => a.joinOrder - b.joinOrder);
+    return insert();
   });
 }

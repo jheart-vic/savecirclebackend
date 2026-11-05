@@ -124,6 +124,9 @@ model Organisation {
   groups        Group[]
   members       Member[]
   groupOfficers GroupOfficer[]
+  rotations     Rotation[]
+  rotationSlots RotationSlot[]
+  cycles        Cycle[]
 
   @@map("organisations")
 }
@@ -208,6 +211,8 @@ model Group {
   creator      User           @relation(fields: [createdBy], references: [id])
   members      Member[]
   officers     GroupOfficer[]
+  rotations    Rotation[]
+  cycles       Cycle[]
 
   @@index([organisationId, createdAt])
   @@map("groups")
@@ -224,8 +229,9 @@ model Member {
   inactiveFrom   DateTime?    @map("inactive_from") @db.Timestamptz(3)
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organisation Organisation @relation(fields: [organisationId], references: [id])
-  group        Group        @relation(fields: [groupId], references: [id])
+  organisation Organisation   @relation(fields: [organisationId], references: [id])
+  group        Group          @relation(fields: [groupId], references: [id])
+  slots        RotationSlot[]
 
   @@unique([groupId, phoneNumber])
   @@unique([groupId, joinOrder])
@@ -247,4 +253,84 @@ model GroupOfficer {
   @@unique([groupId, userId])
   @@index([userId])
   @@map("group_officers")
+}
+
+enum RotationStatus {
+  draft
+  active
+  paused
+  completed
+  dissolved
+}
+
+enum SlotStatus {
+  scheduled
+  paid_out
+  gap
+  held
+  skipped
+}
+
+model Rotation {
+  id             String         @id @default(uuid()) @db.Uuid
+  organisationId String         @map("organisation_id") @db.Uuid
+  groupId        String         @map("group_id") @db.Uuid
+  rotationNumber Int            @map("rotation_number")
+  status         RotationStatus @default(draft)
+  firstDueDate   DateTime?      @map("first_due_date") @db.Date
+  startedAt      DateTime?      @map("started_at") @db.Timestamptz(3)
+  completedAt    DateTime?      @map("completed_at") @db.Timestamptz(3)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation Organisation   @relation(fields: [organisationId], references: [id])
+  group        Group          @relation(fields: [groupId], references: [id])
+  slots        RotationSlot[]
+  cycles       Cycle[]
+
+  @@unique([groupId, rotationNumber])
+  @@map("rotations")
+}
+
+model RotationSlot {
+  id             String     @id @default(uuid()) @db.Uuid
+  organisationId String     @map("organisation_id") @db.Uuid
+  rotationId     String     @map("rotation_id") @db.Uuid
+  memberId       String     @map("member_id") @db.Uuid
+  position       Int
+  status         SlotStatus @default(scheduled)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+  rotation     Rotation     @relation(fields: [rotationId], references: [id])
+  member       Member       @relation(fields: [memberId], references: [id])
+  payoutCycles Cycle[]
+
+  @@unique([rotationId, position])
+  @@unique([rotationId, memberId])
+  @@map("rotation_slots")
+}
+
+model Cycle {
+  id             String    @id @default(uuid()) @db.Uuid
+  organisationId String    @map("organisation_id") @db.Uuid
+  groupId        String    @map("group_id") @db.Uuid
+  // Null for thrift cycles (feature 9).
+  rotationId     String?   @map("rotation_id") @db.Uuid
+  cycleNumber    Int       @map("cycle_number")
+  // Stored dates are the truth once generated.
+  dueDate        DateTime  @map("due_date") @db.Date
+  // Kobo, copied from the group when the cycle is created.
+  amountDue      Int       @map("amount_due")
+  payoutSlotId   String?   @map("payout_slot_id") @db.Uuid
+  cancelledAt    DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organisation Organisation  @relation(fields: [organisationId], references: [id])
+  group        Group         @relation(fields: [groupId], references: [id])
+  rotation     Rotation?     @relation(fields: [rotationId], references: [id])
+  payoutSlot   RotationSlot? @relation(fields: [payoutSlotId], references: [id])
+
+  @@unique([rotationId, cycleNumber])
+  @@index([groupId, dueDate])
+  @@map("cycles")
 }
