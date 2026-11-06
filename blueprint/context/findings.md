@@ -71,18 +71,18 @@
 **Suggested fix:** Compute `GREATEST(c.amount_due - COALESCE(SUM(...), 0), 0)::int` (always within int because it is at most `amount_due`) and filter to shortfalls greater than 0 in SQL (wrap in a subquery or repeat the expression in `WHERE`). No current requirement is lost.
 **Resolution:**
 
-### F-20 [P3] open - Some money-table foreign keys use ON DELETE SET NULL, which lets a referential action rewrite append-only rows
+### F-20 [P3] fixed - Some money-table foreign keys use ON DELETE SET NULL, which lets a referential action rewrite append-only rows
 
 **File:** prisma/migrations/20261105112753_payments/migration.sql:75
 **Found:** 2026-11-05 by /audit independent (scope: current; lens: security, quality)
 **Why it matters:** The RLS design makes `payments`, `contributions`, and `member_credits` append-only for the app role (no UPDATE/DELETE policy). But `payments.member_id` (line 75), `payments.logged_by` (78), `contributions.logged_by` (90), `contributions.reverses_id` (96), `member_credits.source_payment_id` (105), and `member_credits.applied_to_cycle_id` (108) are `ON DELETE SET NULL`, and every FK is `ON UPDATE CASCADE`. Referential actions run regardless of the money tables' RLS, so deleting a referenced user or member (for example by the owner role or a later feature that allows deletes; `users` has no RLS and the app role holds DELETE on it) would silently null who logged the cash or which member a payment belongs to, an UPDATE to money rows that the append-only rule forbids. Not reachable through the API today: members have no DELETE policy and users are held by RESTRICT FKs from sessions and memberships. The other money FKs in the same migration already use RESTRICT, so the set is inconsistent.
 **Suggested fix:** In this unshipped migration (or a follow-up), make the money-table FKs `ON DELETE RESTRICT ON UPDATE RESTRICT` (Prisma: `onDelete: Restrict, onUpdate: Restrict` on those relations). No current requirement is lost.
-**Resolution:**
+**Resolution:** Fixed 2026-11-06 by fix/money-table-foreign-keys-and-payment-amount-check: all 13 money-table relations in prisma/schema.prisma use `onDelete: Restrict, onUpdate: Restrict`, applied by migration 20261106100504_money_fk_restrict (drops and re-adds only those foreign keys). Checked against Neon: `pg_constraint` shows `r`/`r` for all 13; owner-connection deletes of a referenced member, user, and cycle and an id change of a referenced payment fail with 23001 restrict_violation; the payment row is unchanged. Awaiting an `/audit` re-review to close.
 
-### F-21 [P3] open - payments.amount > 0 from the spec is enforced only by request validation
+### F-21 [P3] fixed - payments.amount > 0 from the spec is enforced only by request validation
 
 **File:** prisma/migrations/20261105112753_payments/migration.sql:14
 **Found:** 2026-11-05 by /audit independent (scope: current; lens: quality)
 **Why it matters:** The spec's Data section states `Payment.amount int > 0`. The cash endpoint enforces 1 to 2 000 000 000 in `logCashBody` (payments.validation.ts:9), but the table has no CHECK constraint, so the planned webhook and unmatched paths (features 17-20) can insert a zero or negative payment if their own validation slips. Contributions and credits legitimately go negative (reversals, spends), but payments never should.
 **Suggested fix:** Add `ALTER TABLE "payments" ADD CONSTRAINT "payments_amount_positive" CHECK (amount > 0);` to the migration. No current requirement is lost.
-**Resolution:**
+**Resolution:** Fixed 2026-11-06 by fix/money-table-foreign-keys-and-payment-amount-check: migration 20261106100504_money_fk_restrict adds `payments_amount_positive CHECK ("amount" > 0)` (contribution and credit amounts stay signed). Checked against Neon: owner-connection inserts of amount 0 and -5 fail with 23514 check_violation; cash logging (feature 5 script, 28/28) still passes. Awaiting an `/audit` re-review to close.

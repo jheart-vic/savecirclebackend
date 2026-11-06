@@ -374,9 +374,9 @@ model Payment {
   matchStatus      MatchStatus    @map("match_status")
   createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organisation  Organisation   @relation(fields: [organisationId], references: [id])
-  member        Member?        @relation(fields: [memberId], references: [id])
-  logger        User?          @relation(fields: [loggedBy], references: [id])
+  organisation  Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member        Member?        @relation(fields: [memberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  logger        User?          @relation(fields: [loggedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
   contributions Contribution[]
   credits       MemberCredit[]
 
@@ -398,12 +398,12 @@ model Contribution {
   reason         String?
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organisation Organisation   @relation(fields: [organisationId], references: [id])
-  cycle        Cycle          @relation(fields: [cycleId], references: [id])
-  member       Member         @relation(fields: [memberId], references: [id])
-  logger       User?          @relation(fields: [loggedBy], references: [id])
-  payment      Payment        @relation(fields: [paymentId], references: [id])
-  reverses     Contribution?  @relation("ContributionReversal", fields: [reversesId], references: [id])
+  organisation Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  cycle        Cycle          @relation(fields: [cycleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member         @relation(fields: [memberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  logger       User?          @relation(fields: [loggedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  payment      Payment        @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reverses     Contribution?  @relation("ContributionReversal", fields: [reversesId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   reversedBy   Contribution[] @relation("ContributionReversal")
 
   @@index([cycleId, memberId])
@@ -421,10 +421,10 @@ model MemberCredit {
   appliedToCycleId String?  @map("applied_to_cycle_id") @db.Uuid
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organisation   Organisation @relation(fields: [organisationId], references: [id])
-  member         Member       @relation(fields: [memberId], references: [id])
-  sourcePayment  Payment?     @relation(fields: [sourcePaymentId], references: [id])
-  appliedToCycle Cycle?       @relation(fields: [appliedToCycleId], references: [id])
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sourcePayment  Payment?     @relation(fields: [sourcePaymentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  appliedToCycle Cycle?       @relation(fields: [appliedToCycleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([memberId])
   @@map("member_credits")
